@@ -37,9 +37,16 @@ fn main() -> Result<()> {
         bpp
     );
 
-    // Calculate buffer size
-    let bytes_per_pixel = bpp / 8;
-    let buffer_size = width * height * bytes_per_pixel;
+    // Calculate buffer size - use the actual stride from the device
+    let bytes_per_pixel = (bpp / 8) as u32;
+    let line_length = vinfo.xres_virtual * bytes_per_pixel;
+    let buffer_size = (line_length * height as u32) as usize;
+
+    log::info!(
+        "fb_rect: line_length={} bytes, buffer_size={} bytes",
+        line_length,
+        buffer_size
+    );
 
     // Map the framebuffer
     let fb_mem = unsafe {
@@ -65,16 +72,50 @@ fn main() -> Result<()> {
     let rect_x = (width - rect_width) / 2;
     let rect_y = (height - rect_height) / 2;
 
-    let fb_slice = unsafe {
-        std::slice::from_raw_parts_mut(fb_mem as *mut u32, width * height)
-    };
+    // Create a byte slice for the entire framebuffer
+    let fb_bytes = unsafe { std::slice::from_raw_parts_mut(fb_mem as *mut u8, buffer_size) };
 
-    // Fill with orange (ARGB: 0xFFFF8800)
-    let orange = 0xFFFF8800u32;
-
-    for y in rect_y..(rect_y + rect_height) {
-        for x in rect_x..(rect_x + rect_width) {
-            fb_slice[y * width + x] = orange;
+    // Draw based on bpp
+    match bpp {
+        32 => {
+            // ARGB8888 or RGBA8888
+            let orange = 0xFFFF8800u32;
+            for y in rect_y..(rect_y + rect_height) {
+                let row_offset = y * line_length as usize;
+                for x in rect_x..(rect_x + rect_width) {
+                    let pixel_offset = row_offset + x * 4;
+                    let pixel_ptr = &mut fb_bytes[pixel_offset..pixel_offset + 4];
+                    pixel_ptr.copy_from_slice(&orange.to_ne_bytes());
+                }
+            }
+        }
+        16 => {
+            // RGB565: 5 bits red, 6 bits green, 5 bits blue
+            // Orange in RGB565: R=31, G=17, B=0 -> 0xF880
+            let orange_565: u16 = 0xF880;
+            for y in rect_y..(rect_y + rect_height) {
+                let row_offset = y * line_length as usize;
+                for x in rect_x..(rect_x + rect_width) {
+                    let pixel_offset = row_offset + x * 2;
+                    let pixel_ptr = &mut fb_bytes[pixel_offset..pixel_offset + 2];
+                    pixel_ptr.copy_from_slice(&orange_565.to_ne_bytes());
+                }
+            }
+        }
+        24 => {
+            // RGB888
+            for y in rect_y..(rect_y + rect_height) {
+                let row_offset = y * line_length as usize;
+                for x in rect_x..(rect_x + rect_width) {
+                    let pixel_offset = row_offset + x * 3;
+                    fb_bytes[pixel_offset] = 0x00; // B
+                    fb_bytes[pixel_offset + 1] = 0x88; // G
+                    fb_bytes[pixel_offset + 2] = 0xFF; // R
+                }
+            }
+        }
+        _ => {
+            anyhow::bail!("Unsupported bpp: {}. Only 16, 24, and 32 bpp supported.", bpp);
         }
     }
 
@@ -165,18 +206,49 @@ mod tests {
     }
 
     #[test]
-    fn test_orange_color_constant() {
-        // Verify the orange color is in correct ARGB format
-        let orange = 0xFFFF8800u32;
-        let alpha = (orange >> 24) & 0xFF;
-        let red = (orange >> 16) & 0xFF;
-        let green = (orange >> 8) & 0xFF;
-        let blue = orange & 0xFF;
+    fn test_orange_color_constants() {
+        // Verify the orange color is in correct ARGB format (32bpp)
+        let orange_32 = 0xFFFF8800u32;
+        let alpha = (orange_32 >> 24) & 0xFF;
+        let red = (orange_32 >> 16) & 0xFF;
+        let green = (orange_32 >> 8) & 0xFF;
+        let blue = orange_32 & 0xFF;
 
         assert_eq!(alpha, 0xFF); // Fully opaque
         assert_eq!(red, 0xFF);   // Full red
         assert_eq!(green, 0x88); // Half green
         assert_eq!(blue, 0x00);  // No blue
+
+        // Verify RGB565 orange (16bpp)
+        let orange_565: u16 = 0xF880;
+        let r5 = (orange_565 >> 11) & 0x1F;
+        let g6 = (orange_565 >> 5) & 0x3F;
+        let b5 = orange_565 & 0x1F;
+
+        assert_eq!(r5, 31); // Full red (5 bits)
+        assert_eq!(g6, 17); // ~Half green (6 bits)
+        assert_eq!(b5, 0);  // No blue (5 bits)
+    }
+
+    #[test]
+    fn test_buffer_size_calculation() {
+        // Test that we properly account for stride/line_length
+        let width = 1080;
+        let xres_virtual = 1088; // Common: padded to alignment
+        let height = 1920;
+
+        // 32bpp
+        let bytes_per_pixel_32 = 4;
+        let line_length_32 = xres_virtual * bytes_per_pixel_32;
+        let buffer_size_32 = line_length_32 * height;
+        assert_eq!(buffer_size_32, 1088 * 4 * 1920);
+        assert!(buffer_size_32 > width * height * 4); // Larger than naive calculation
+
+        // 16bpp
+        let bytes_per_pixel_16 = 2;
+        let line_length_16 = xres_virtual * bytes_per_pixel_16;
+        let buffer_size_16 = line_length_16 * height;
+        assert_eq!(buffer_size_16, 1088 * 2 * 1920);
     }
 
     #[test]

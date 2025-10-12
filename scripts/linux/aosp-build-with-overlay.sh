@@ -2,8 +2,10 @@
 # Build AOSP with a specific agent's overlay
 # Usage: ./scripts/linux/aosp-build-with-overlay.sh <agent-name>
 
-# Note: Can't use 'set -u' because AOSP's build scripts have unbound variables
-set -eo pipefail
+# Note: Can't use strict error modes because AOSP's build scripts have issues:
+# - 'set -u' fails due to unbound variables
+# - 'set -e' fails when bash completion 'complete' command is missing
+set -o pipefail
 
 AGENT_NAME="${1:-}"
 if [ -z "$AGENT_NAME" ]; then

@@ -11,6 +11,16 @@ build-fb-x86:
 build-fb-arm64:
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 
+# Build the SurfaceFlinger shim via CMake
+build-sf-shim:
+	@if [ -z "$${ANDROID_NDK_HOME:-}" ]; then echo "ANDROID_NDK_HOME must be set (try nix develop)"; exit 1; fi
+	cmake -S rust/sf_shim -B target/sf_shim \
+		-DANDROID_PLATFORM_LIB_DIR="${ANDROID_PLATFORM_LIB_DIR:-}" \
+		-DCMAKE_TOOLCHAIN_FILE="$${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+		-DANDROID_ABI="${ANDROID_ABI:-arm64-v8a}" \
+		-DANDROID_PLATFORM=android-34
+	cmake --build target/sf_shim
+
 # emulator lifecycle (mac)
 # Note: SDK components are managed by flake.nix, no need to run emu-install
 
@@ -28,6 +38,9 @@ emu-root:
 	adb wait-for-device
 	adb root || true
 	adb remount
+
+detect-arch:
+	@adb shell uname -m | tr -d '\r'
 
 install-service-x86:
 	adb push target/x86_64-linux-android/release/webosd /system/bin/webosd

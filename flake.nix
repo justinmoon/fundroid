@@ -54,7 +54,7 @@
             # Linux shell for building AOSP + running Cuttlefish
             aosp = pkgs.mkShell {
               packages = with pkgs; [
-                git python3 openjdk17 # JDK for AOSP
+                git python3 openjdk17 go # JDK and Go for AOSP
                 gperf libxml2 zip unzip rsync curl bc bison flex
                 ninja cmake gn ccache file
                 android-tools qemu

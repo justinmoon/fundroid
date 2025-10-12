@@ -1,0 +1,8 @@
+[package]
+name = "webosd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+android_logger = "0.14"
+log = "0.4"

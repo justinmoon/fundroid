@@ -11,17 +11,18 @@ Enter the Nix development shell:
 nix develop
 ```
 
-### 1. Install Android SDK Components
+**Note:** The first time you run `nix develop`, it will download the Android SDK, emulator, and system images (~2-3GB). This can take 10-20 minutes depending on your connection. Subsequent runs will be instant.
 
-```bash
-just emu-install
-```
+### 1. Android SDK Components
 
-This installs:
+The Nix flake automatically provides:
 - platform-tools (adb)
-- emulator
+- Android emulator
 - Android 34 platform
-- System image for arm64-v8a (Apple Silicon) or x86_64 (Intel Mac)
+- System images for both arm64-v8a and x86_64
+- NDK for cross-compilation
+
+No manual installation needed!
 
 ### 2. Create AVD (Android Virtual Device)
 

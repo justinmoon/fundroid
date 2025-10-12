@@ -12,10 +12,7 @@ build-fb-arm64:
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 
 # emulator lifecycle (mac)
-emu-install:
-	yes | sdkmanager "platform-tools" "emulator" "platforms;android-34" \
-	"system-images;android-34;default;arm64-v8a" || true
-	# If you're on Intel Mac, swap arm64-v8a for x86_64.
+# Note: SDK components are managed by flake.nix, no need to run emu-install
 
 emu-create:
 	avdmanager create avd -n webosd -k "system-images;android-34;default;arm64-v8a" --device pixel_6 || true

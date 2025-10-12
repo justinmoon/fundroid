@@ -5,19 +5,16 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+  pull_request_target:
+    branches: [master, main]
 
 jobs:
   ci:
-    runs-on: macos-latest
+    runs-on: [self-hosted, nixos, hetzner]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Run CI
         run: nix run .#ci

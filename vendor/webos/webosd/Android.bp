@@ -1,0 +1,8 @@
+rust_binary {
+    name: "webosd",
+    crate_name: "webosd",
+    srcs: ["src/main.rs"],
+    edition: "2021",
+    rustlibs: [ "liblog_rust" ],
+    vendor: true,  // Install to vendor partition to avoid GSI artifact path restrictions
+}

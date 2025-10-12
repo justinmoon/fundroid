@@ -1,0 +1,10 @@
+/Users/justin/code/boom/worktrees/project-init-step-claude/rust/drm_rect/target/debug/deps/env_filter-1eac4750ecd06330.d: /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/lib.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/directive.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filter.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filtered_log.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/op.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/parser.rs
+
+/Users/justin/code/boom/worktrees/project-init-step-claude/rust/drm_rect/target/debug/deps/libenv_filter-1eac4750ecd06330.rmeta: /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/lib.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/directive.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filter.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filtered_log.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/op.rs /Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/parser.rs
+
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/lib.rs:
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/directive.rs:
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filter.rs:
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/filtered_log.rs:
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/op.rs:
+/Users/justin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_filter-0.1.3/src/parser.rs:

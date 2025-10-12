@@ -1,0 +1,17 @@
+on late-init
+    # keep low-level services; no framework
+    stop zygote
+    stop system_server
+    start surfaceflinger
+    start inputflinger
+    start netd
+
+service webosd /system/bin/webosd
+    class main
+    user system
+    group system graphics input inet wakelock
+    oneshot
+    seclabel u:r:system_server:s0
+
+on property:sys.boot_completed=1
+    start webosd

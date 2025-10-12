@@ -47,6 +47,9 @@ cf-adb-tunnel:
 cf-tunnel:
 	./scripts/linux/cf-adb-tunnel.sh
 
+remote-build:
+	./scripts/mac/remote-build.sh
+
 aosp-build-webosd:
 	./scripts/linux/aosp-build-webosd.sh
 

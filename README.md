@@ -48,6 +48,14 @@ This repository contains the initial scaffolding for a Nix-first workflow that t
 
 These steps stop the traditional Android framework, keep the low-level services we need, and confirm that `init` starts the Rust daemon from the custom product image.
 
+### Remote builder workflow
+
+- Configure your Hetzner (or other) builder with KVM access and the shared AOSP checkout at `/home/justin/aosp`.
+- From a local worktree, run `just remote-build` to rsync the repo to `hetzner:~/webos-remote/<branch>/` and trigger `just aosp-build-webosd` inside `nix develop .#aosp` with `AOSP_OUT_SUFFIX=<branch>`.
+- Set `WEBOS_REMOTE`, `WEBOS_REMOTE_PATH`, or `WEBOS_REMOTE_AOSP` to override the default host, remote directory, or AOSP tree when needed.
+- On the builder, launch Cuttlefish with the same suffix: `AOSP_OUT_SUFFIX=<branch> just cf-launch`.
+- When you need a fresh image, reuse `AOSP_OUT_SUFFIX=<branch> just aosp-rebuild-image` to keep build outputs isolated per branch.
+
 Run all checks locally with:
 
 ```bash

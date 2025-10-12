@@ -7,7 +7,14 @@ AOSP_ROOT="${AOSP_ROOT:-${PROJECT_ROOT}/out/aosp}"
 PRODUCT_NAME="${AOSP_PRODUCT_NAME:-webos_cf_x86_64}"
 HOST_ARCH="${HOST_ARCH:-linux-x86}"
 
-OUT_DIR="${AOSP_ROOT}/out"
+if [ -n "${AOSP_OUT_SUFFIX:-}" ]; then
+  OUT_DIR="${AOSP_ROOT}/out/${AOSP_OUT_SUFFIX}"
+elif [ -n "${AOSP_OUT_DIR:-}" ]; then
+  OUT_DIR="${AOSP_OUT_DIR}"
+else
+  OUT_DIR="${AOSP_ROOT}/out"
+fi
+
 PRODUCT_OUT="${OUT_DIR}/target/product/vsoc_x86_64"
 HOST_OUT="${OUT_DIR}/host/${HOST_ARCH}"
 

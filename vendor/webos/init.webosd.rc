@@ -1,0 +1,12 @@
+on post-fs-data
+    mkdir /data/local/webos 0755 system system
+
+service webosd /system/bin/webosd
+    class core
+    user root
+    group root graphics
+    oneshot
+    disabled
+
+on property:persist.webosd.enabled=1
+    start webosd

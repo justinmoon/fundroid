@@ -1,1 +1,18 @@
 /worktrees
+
+# Rust build artifacts
+**/target/
+**/*.rs.bk
+
+# Android build artifacts
+*.apk
+*.ap_
+*.dex
+local.properties
+
+# macOS
+.DS_Store
+
+# Android emulator
+*.avd/
+.android/

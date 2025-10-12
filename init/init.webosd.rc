@@ -1,0 +1,16 @@
+on late-init
+    start surfaceflinger
+    start inputflinger
+    start netd
+
+service webosd /system/bin/webosd
+    class main
+    user system
+    group system graphics input inet wakelock
+    oneshot
+
+on property:sys.boot_completed=1
+    # optional: keep it lean
+    stop zygote
+    stop system_server
+    start webosd

@@ -39,8 +39,10 @@ cd "$AOSP_ROOT"
 echo "📦 Copying overlay..."
 rsync -a --delete "${OVERLAY_SOURCE}/vendor/webos/" "${AOSP_ROOT}/vendor/webos/"
 
-# Set up build environment
+# Set up build environment (temporarily disable strict mode for envsetup.sh)
+set +u
 source build/envsetup.sh
+set -u
 lunch webos_cf_x86_64-userdebug
 
 # Build with isolated output directory

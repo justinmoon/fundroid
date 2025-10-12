@@ -46,5 +46,25 @@
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER =
             "${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang";
         };
+
+        apps.ci = {
+          type = "app";
+          program = "${pkgs.writeShellScript "ci" ''
+            export PATH="${pkgs.lib.makeBinPath [
+              rust
+              pkgs.android-tools
+              pkgs.just
+              pkgs.cmake
+              pkgs.ninja
+              pkgs.pkg-config
+            ]}:$PATH"
+            export ANDROID_SDK_ROOT="${androidComposition.androidsdk}/libexec/android-sdk"
+            export ANDROID_NDK_HOME="${ndk}"
+            export ANDROID_NDK_ROOT="${ndk}"
+            export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang"
+            export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+            exec ${./scripts/ci.sh}
+          ''}";
+        };
       });
 }

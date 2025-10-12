@@ -32,6 +32,26 @@
             llvmPackages.clang llvmPackages.lld
             just                  # task runner
           ];
+          # FHS environment for AOSP build (Linux only)
+          aospFhs = if pkgs.stdenv.isLinux then pkgs.buildFHSUserEnv {
+            name = "aosp-fhs";
+            targetPkgs = pkgs: with pkgs; [
+              git python3 openjdk17 go
+              gperf libxml2 zip unzip rsync curl bc bison flex
+              ninja cmake gn ccache file
+              android-tools qemu
+              gnumake m4 coreutils
+              # Libraries needed for dynamic linking
+              stdenv.cc.cc.lib
+              zlib ncurses5
+            ];
+            multiPkgs = pkgs: with pkgs; [ zlib ];
+            runScript = "bash";
+            profile = ''
+              export ALLOW_NINJA_ENV=true
+              export USE_CCACHE=1
+            '';
+          } else null;
         in {
           devShells = {
             # macOS shell: cross-compile Rust → Android; use 'adb' locally.
@@ -52,26 +72,36 @@
             };
 
             # Linux shell for building AOSP + running Cuttlefish
-            aosp = pkgs.mkShell {
-              packages = with pkgs; [
-                git python3 openjdk17 go # JDK and Go for AOSP
-                gperf libxml2 zip unzip rsync curl bc bison flex
-                ninja cmake gn ccache file
-                android-tools qemu
-                gnumake m4 # Additional build tools
-                coreutils # cmp, mv, and other essential commands
-              ];
-              shellHook = ''
-                echo "✅ AOSP/Cuttlefish build shell"
-                echo "Install/enable KVM+libvirt on the host (outside Nix) before running CF."
-                echo ""
-                echo "Note: Install 'repo' tool separately:"
-                echo "  mkdir -p ~/.bin"
-                echo "  curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo"
-                echo "  chmod a+x ~/.bin/repo"
-                echo "  export PATH=~/.bin:\$PATH"
-              '';
-            };
+            # Use FHS environment to avoid NixOS dynamic linking issues
+            aosp = if pkgs.stdenv.isLinux then
+              pkgs.mkShell {
+                packages = [ aospFhs ];
+                shellHook = ''
+                  echo "✅ AOSP/Cuttlefish build shell (FHS environment)"
+                  echo "Install/enable KVM+libvirt on the host (outside Nix) before running CF."
+                  echo ""
+                  echo "Note: Install 'repo' tool separately:"
+                  echo "  mkdir -p ~/.bin"
+                  echo "  curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo"
+                  echo "  chmod a+x ~/.bin/repo"
+                  echo "  export PATH=~/.bin:\$PATH"
+                  echo ""
+                  echo "To enter FHS environment: aosp-fhs"
+                '';
+              }
+            else
+              pkgs.mkShell {
+                packages = with pkgs; [
+                  git python3 openjdk17 go
+                  gperf libxml2 zip unzip rsync curl bc bison flex
+                  ninja cmake gn ccache file
+                  android-tools qemu
+                  gnumake m4 coreutils
+                ];
+                shellHook = ''
+                  echo "✅ AOSP/Cuttlefish build shell (macOS - limited support)"
+                '';
+              };
           };
         });
 }

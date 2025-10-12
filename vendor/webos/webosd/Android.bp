@@ -1,0 +1,12 @@
+rust_binary {
+    name: "webosd",
+    crate_name: "webosd",
+    srcs: ["src/main.rs"],
+    edition: "2021",
+    vendor_available: true,
+    prefer_rlib: true,
+    compile_multilib: "both",
+    shared_libs: [
+        "liblog",
+    ],
+}

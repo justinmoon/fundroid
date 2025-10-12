@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  pull_request_target:
+    branches: [master, main]
+
+jobs:
+  ci:
+    runs-on: [self-hosted, nixos, hetzner]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run CI
+        run: nix run .#ci

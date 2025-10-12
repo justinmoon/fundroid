@@ -59,6 +59,7 @@
                 ninja cmake gn ccache file
                 android-tools qemu
                 gnumake m4 # Additional build tools
+                coreutils # cmp, mv, and other essential commands
               ];
               shellHook = ''
                 echo "✅ AOSP/Cuttlefish build shell"

@@ -78,6 +78,7 @@
               pkgs.cmake
               pkgs.ninja
               pkgs.pkg-config
+              pkgs.gcc
             ]}:$PATH"
             export ANDROID_SDK_ROOT="${androidCompositionCI.androidsdk}/libexec/android-sdk"
             export ANDROID_NDK_HOME="${ndkCI}"

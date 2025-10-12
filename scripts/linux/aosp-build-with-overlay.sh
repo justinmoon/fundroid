@@ -2,7 +2,8 @@
 # Build AOSP with a specific agent's overlay
 # Usage: ./scripts/linux/aosp-build-with-overlay.sh <agent-name>
 
-set -euo pipefail
+# Note: Can't use 'set -u' because AOSP's build scripts have unbound variables
+set -eo pipefail
 
 AGENT_NAME="${1:-}"
 if [ -z "$AGENT_NAME" ]; then
@@ -39,10 +40,8 @@ cd "$AOSP_ROOT"
 echo "📦 Copying overlay..."
 rsync -a --delete "${OVERLAY_SOURCE}/vendor/webos/" "${AOSP_ROOT}/vendor/webos/"
 
-# Set up build environment (temporarily disable strict mode for envsetup.sh)
-set +u
+# Set up build environment
 source build/envsetup.sh
-set -u
 lunch webos_cf_x86_64-userdebug
 
 # Build with isolated output directory

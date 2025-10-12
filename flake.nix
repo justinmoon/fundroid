@@ -54,14 +54,21 @@
             # Linux shell for building AOSP + running Cuttlefish
             aosp = pkgs.mkShell {
               packages = with pkgs; [
-                git repo python3 openjdk17 # repo + JDK
+                git python3 openjdk17 # JDK for AOSP
                 gperf libxml2 zip unzip rsync curl bc bison flex
                 ninja cmake gn ccache file
                 android-tools qemu
+                gnumake m4 # Additional build tools
               ];
               shellHook = ''
                 echo "✅ AOSP/Cuttlefish build shell"
                 echo "Install/enable KVM+libvirt on the host (outside Nix) before running CF."
+                echo ""
+                echo "Note: Install 'repo' tool separately:"
+                echo "  mkdir -p ~/.bin"
+                echo "  curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo"
+                echo "  chmod a+x ~/.bin/repo"
+                echo "  export PATH=~/.bin:\$PATH"
               '';
             };
           };

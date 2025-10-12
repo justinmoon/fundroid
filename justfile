@@ -23,18 +23,14 @@ build-arm64:
 
 run-x86:
 	BIN="target/x86_64-linux-android/release/drm_rect"
-	if [ ! -f "$BIN" ]; then
-		just build-x86
-	fi
+	[ -f "$BIN" ] || just build-x86
 	adb push "$BIN" /data/local/tmp/drm_rect
 	adb shell chmod +x /data/local/tmp/drm_rect
 	adb shell /data/local/tmp/drm_rect
 
 run-arm64:
 	BIN="target/aarch64-linux-android/release/drm_rect"
-	if [ ! -f "$BIN" ]; then
-		just build-arm64
-	fi
+	[ -f "$BIN" ] || just build-arm64
 	adb push "$BIN" /data/local/tmp/drm_rect
 	adb shell chmod +x /data/local/tmp/drm_rect
 	adb shell /data/local/tmp/drm_rect
@@ -46,6 +42,9 @@ cf-launch:
 	./scripts/linux/cf-launch.sh
 
 cf-adb-tunnel:
+	./scripts/linux/cf-adb-tunnel.sh
+
+cf-tunnel:
 	./scripts/linux/cf-adb-tunnel.sh
 
 aosp-build-webosd:

@@ -1,67 +1,27 @@
-use std::env;
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+use std::thread;
+use std::time::Duration;
+
+const ANDROID_LOG_INFO: i32 = 4;
+static TAG: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"webosd\0") };
+
+#[link(name = "log")]
+extern "C" {
+    fn __android_log_write(prio: i32, tag: *const c_char, text: *const c_char) -> i32;
+}
+
+fn log_info(message: &str) {
+    let msg = CString::new(message).unwrap_or_else(|_| CString::new("log error").unwrap());
+    unsafe {
+        __android_log_write(ANDROID_LOG_INFO, TAG.as_ptr(), msg.as_ptr());
+    }
+}
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("[webosd] fatal: {err}");
-        std::process::exit(1);
+    log_info("hello from init()");
+    loop {
+        log_info("still alive");
+        thread::sleep(Duration::from_secs(60));
     }
-}
-
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let state_dir = resolve_state_dir()?;
-    ensure_directory(&state_dir)?;
-
-    let status_path = state_dir.join("webosd.status");
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
-
-    let mut file = File::create(&status_path)?;
-    writeln!(
-        file,
-        "webosd started at {}.{}",
-        now.as_secs(),
-        now.subsec_millis()
-    )?;
-
-    println!(
-        "[webosd] initialized state directory at {}",
-        state_dir.display()
-    );
-
-    Ok(())
-}
-
-fn resolve_state_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    if let Ok(path) = env::var("WEBOSD_STATE_DIR") {
-        return Ok(PathBuf::from(path));
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        return Ok(PathBuf::from("/data/local/webos"));
-    }
-
-    #[cfg(not(target_os = "android"))]
-    {
-        if let Some(home) = env::var_os("HOME") {
-            let mut dir = PathBuf::from(home);
-            dir.push(".local");
-            dir.push("share");
-            dir.push("webosd");
-            return Ok(dir);
-        }
-    }
-
-    Ok(env::current_dir()?.join("webosd-state"))
-}
-
-fn ensure_directory(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    if path.exists() {
-        return Ok(());
-    }
-    fs::create_dir_all(path)?;
-    Ok(())
 }

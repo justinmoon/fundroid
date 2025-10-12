@@ -1,11 +1,18 @@
-on post-fs-data
+on late-init
+    stop zygote
+    stop zygote_secondary
+    stop system_server
+    start surfaceflinger
+    start inputflinger
+    start netd
     mkdir /data/local/webos 0755 system system
+    chown system system /data/local/webos
+    setprop persist.webosd.enabled 1
 
 service webosd /system/bin/webosd
-    class core
+    class main
     user root
-    group root graphics
-    oneshot
+    group root system graphics input inet wakelock
     disabled
 
 on property:persist.webosd.enabled=1

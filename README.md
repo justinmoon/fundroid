@@ -38,6 +38,16 @@ This repository contains the initial scaffolding for a Nix-first workflow that t
 - `rust/drm_rect` — experiments for direct DRM rendering.
 - `rust/webosd` — the system daemon that will eventually be built through the AOSP tree.
 
+## Milestone 1: boot your AOSP image
+
+1. On the Linux builder, enter the AOSP shell: `nix develop .#aosp`.
+2. Sync AOSP and lay down the overlay: `just aosp-bootstrap`.
+3. Build the product image: `just aosp-build-webosd` (invokes `lunch webos_cf_x86_64-userdebug`).
+4. Launch Cuttlefish: `just cf-launch` and wait for `adb devices` to report the virtual device.
+5. Verify the daemon: `adb logcat -s webosd:*` should show `hello from init()` followed by periodic `still alive` messages.
+
+These steps stop the traditional Android framework, keep the low-level services we need, and confirm that `init` starts the Rust daemon from the custom product image.
+
 Run all checks locally with:
 
 ```bash

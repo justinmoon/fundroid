@@ -6,4 +6,7 @@ rust_binary {
     vendor_available: true,
     prefer_rlib: true,
     compile_multilib: "both",
+    shared_libs: [
+        "liblog",
+    ],
 }

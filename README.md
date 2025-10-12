@@ -32,3 +32,7 @@ adb logcat -s webosd:*
 - **Intel**: Use x86_64 system images, builds for x86_64-linux-android
 
 Auto-detection is built into `just deploy-webosd` and `just install-service`.
+
+## Available Commands
+
+Run `just` to see all available commands.

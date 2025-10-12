@@ -31,6 +31,19 @@
 
           androidNdk = pkgs.android-ndk;
 
+          repoTool = pkgs.stdenv.mkDerivation {
+            pname = "repo";
+            version = "2.48";
+            src = pkgs.fetchurl {
+              url = "https://storage.googleapis.com/git-repo-downloads/repo";
+              hash = "sha256-bLopTWIYu9ShUAWYIHs5ecdSx6EirvlCnk1/72iIM7U=";
+            };
+            dontUnpack = true;
+            installPhase = ''
+              install -Dm755 $src $out/bin/repo
+            '';
+          };
+
           ndkPrebuilt =
             if pkgs.stdenv.hostPlatform.isDarwin then "darwin-x86_64"
             else if pkgs.stdenv.hostPlatform.isLinux &&
@@ -48,6 +61,8 @@
             pkgs.unzip
             pkgs.zip
             pkgs.which
+            pkgs.coreutils
+            pkgs.diffutils
             pkgs.openssl
             pkgs.cacert
             pkgs.android-tools
@@ -55,6 +70,7 @@
             pkgs.llvmPackages.clang
             pkgs.llvmPackages.lld
             pkgs.just
+            repoTool
           ];
         in {
           devShells = {
@@ -77,7 +93,6 @@
               packages =
                 (with pkgs; [
                   git
-                  repo
                   python312
                   python312Packages.pyopenssl
                   openjdk17_headless
@@ -90,6 +105,8 @@
                   bc
                   bison
                   flex
+                  coreutils
+                  diffutils
                   ninja
                   cmake
                   gn
@@ -99,6 +116,7 @@
                   qemu
                   just
                 ])
+                ++ [ repoTool ]
                 ++ lib.optionals pkgs.stdenv.isLinux [
                   pkgs.qemu_kvm
                   pkgs.libvirt

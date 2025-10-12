@@ -45,7 +45,7 @@
               stdenv.cc.cc.lib
               zlib ncurses5
             ];
-            multiPkgs = pkgs: with pkgs; [ zlib ];
+            multiPkgs = pkgs: with pkgs; [ zlib ncurses5 ];  # Add ncurses5 for 32-bit support
             runScript = "bash";
             profile = ''
               export ALLOW_NINJA_ENV=true

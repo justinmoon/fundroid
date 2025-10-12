@@ -3,7 +3,6 @@
 # Rust build artifacts
 **/target/
 **/*.rs.bk
-**/Cargo.lock
 
 # Android build artifacts
 *.apk

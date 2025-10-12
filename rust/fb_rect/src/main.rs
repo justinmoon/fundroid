@@ -40,7 +40,7 @@ fn main() -> Result<()> {
     // Calculate buffer size - use the actual stride from the device
     let bytes_per_pixel = (bpp / 8) as u32;
     let line_length = vinfo.xres_virtual * bytes_per_pixel;
-    let buffer_size = (line_length * height as u32) as usize;
+    let buffer_size = (line_length * vinfo.yres_virtual) as usize;
 
     log::info!(
         "fb_rect: line_length={} bytes, buffer_size={} bytes",

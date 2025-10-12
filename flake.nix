@@ -8,7 +8,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-darwin" ] (system:
+    flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ] (system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -28,6 +28,8 @@
           buildToolsVersions = [ "34.0.0" ];
         };
         ndk = "${androidComposition.androidsdk}/libexec/android-sdk/ndk-bundle";
+        # Map Nix system to NDK prebuilt directory name
+        ndkHost = if pkgs.stdenv.isDarwin then "darwin-x86_64" else "linux-x86_64";
       in {
         devShells.default = pkgs.mkShell {
           packages = [
@@ -42,9 +44,9 @@
           ANDROID_NDK_HOME = ndk;
           ANDROID_NDK_ROOT = ndk;
           CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER  =
-            "${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang";
+            "${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/x86_64-linux-android24-clang";
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER =
-            "${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang";
+            "${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/aarch64-linux-android24-clang";
         };
 
         apps.ci = {
@@ -61,8 +63,8 @@
             export ANDROID_SDK_ROOT="${androidComposition.androidsdk}/libexec/android-sdk"
             export ANDROID_NDK_HOME="${ndk}"
             export ANDROID_NDK_ROOT="${ndk}"
-            export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang"
-            export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+            export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/x86_64-linux-android24-clang"
+            export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/aarch64-linux-android24-clang"
             exec ${./scripts/ci.sh}
           ''}";
         };

@@ -61,6 +61,11 @@
             pkgs.rsync
             pkgs.jdk17_headless
             pkgs.unzip
+            pkgs.python3
+            pkgs.e2fsprogs
+            pkgs.android-tools
+            pkgs.fakeroot
+            pkgs.lz4
             androidSdkEnv
           ];
           shellHook = ''
@@ -121,6 +126,11 @@
                 pkgs.gcc
                 pkgs.jdk17_headless
                 pkgs.unzip
+                pkgs.python3
+                pkgs.e2fsprogs
+                pkgs.android-tools
+                pkgs.fakeroot
+                pkgs.lz4
               ]}:$PATH"
 
               export JAVA_HOME="${pkgs.jdk17_headless}"

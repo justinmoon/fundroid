@@ -62,6 +62,35 @@ emu-root:
 	adb root || true
 	adb remount
 
+capsule-shell:
+	@serial="${ANDROID_SERIAL:-}"; \
+	if [ -n "$serial" ]; then \
+		adb -s "$serial" wait-for-device; \
+	else \
+		adb wait-for-device; \
+	fi; \
+	if ! { \
+		if [ -n "$serial" ]; then \
+			adb -s "$serial" root >/dev/null 2>&1; \
+		else \
+			adb root >/dev/null 2>&1; \
+		fi; \
+	}; then \
+		echo "Failed to acquire root shell; run 'just emu-root' first."; \
+		exit 1; \
+	fi; \
+	if [ -n "$serial" ]; then \
+		adb -s "$serial" wait-for-device; \
+	else \
+		adb wait-for-device; \
+	fi; \
+	echo "Opening root adb shell (ctrl-d to exit)..." >&2; \
+	if [ -n "$serial" ]; then \
+		adb -s "$serial" shell; \
+	else \
+		adb shell; \
+	fi
+
 detect-arch:
 	@adb shell uname -m | tr -d '\r'
 

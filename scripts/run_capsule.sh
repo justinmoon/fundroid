@@ -137,6 +137,12 @@ if [ -f "\$ENTRY" ]; then
 else
 	echo "capsule_entry.sh not deployed (run start first)"
 fi
+ready=\$(getprop capsule.ready 2>/dev/null)
+if [ -n "\$ready" ]; then
+	echo "capsule.ready=\$ready"
+else
+	echo "capsule.ready=<unset>"
+fi
 EOF
 
 	adb_shell "$remote"

@@ -32,6 +32,26 @@ bind_mount_dir() {
 	fi
 }
 
+bind_mount_path() {
+	src="$1"
+	dst="$2"
+	if [ -d "$src" ]; then
+		bind_mount_dir "$src" "$dst"
+		return
+	fi
+	if [ ! -e "$src" ]; then
+		return
+	fi
+	ensure_dir "$(dirname "$dst")"
+	if [ ! -e "$dst" ]; then
+		rm -f "$dst" >/dev/null 2>&1 || true
+		"$TOYBOX" touch "$dst"
+	fi
+	if ! is_mounted "$dst"; then
+		"$TOYBOX" mount --bind "$src" "$dst"
+	fi
+}
+
 mount_tmpfs() {
 	target="$1"
 	type="$2"
@@ -104,6 +124,9 @@ prepare_rootfs() {
 		fi
 	done
 
+	bind_mount_path "/dev/kmsg" "$ROOTFS/dev/kmsg"
+	bind_mount_dir "/dev/log" "$ROOTFS/dev/log"
+
 	ensure_char_device "$ROOTFS/dev/null" 1 3
 	ensure_char_device "$ROOTFS/dev/zero" 1 5
 	ensure_char_device "$ROOTFS/dev/full" 1 7
@@ -129,6 +152,8 @@ teardown_rootfs() {
 			rm -f "$ROOTFS/dev/$node"
 		fi
 	done
+	rm -f "$ROOTFS/dev/kmsg"
+	rm -rf "$ROOTFS/dev/log"
 }
 
 exec_chroot() {
@@ -147,6 +172,8 @@ print_status() {
 		"$ROOTFS/system" \
 		"$ROOTFS/vendor" \
 		"$ROOTFS/apex" \
+		"$ROOTFS/dev/log" \
+		"$ROOTFS/dev/kmsg" \
 		"$ROOTFS/proc" \
 		"$ROOTFS/sys" \
 		"$ROOTFS/tmp" \

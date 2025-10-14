@@ -1,0 +1,7 @@
+# Runtime directories created on-device or during sync
+tmp/
+run/
+var/
+dev/
+proc/
+sys/

@@ -87,7 +87,7 @@ fn try_open_binder(path: &Path) -> Result<()> {
 use std::sync::OnceLock;
 
 #[cfg(target_os = "android")]
-use rsbinder::ProcessState;
+use rsbinder::{hub, ProcessState};
 
 #[cfg(target_os = "android")]
 static PROCESS_STATE: OnceLock<&'static ProcessState> = OnceLock::new();
@@ -145,6 +145,20 @@ pub fn ensure_process_state(path: &Path) -> Result<&'static ProcessState> {
 #[cfg(not(target_os = "android"))]
 #[allow(unused_variables)]
 pub fn ensure_process_state(path: &Path) -> Result<()> {
+    Err(Error::UnsupportedPlatform)
+}
+
+/// List registered binder services using the specified driver.
+#[cfg(target_os = "android")]
+pub fn list_services(path: &Path, dump_priority: i32) -> Result<Vec<String>> {
+    ensure_process_state(path)?;
+    let services = hub::list_services(dump_priority);
+    Ok(services)
+}
+
+#[cfg(not(target_os = "android"))]
+#[allow(unused_variables)]
+pub fn list_services(path: &Path, dump_priority: i32) -> Result<Vec<String>> {
     Err(Error::UnsupportedPlatform)
 }
 

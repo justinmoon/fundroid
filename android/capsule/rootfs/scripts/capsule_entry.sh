@@ -102,7 +102,7 @@ prepare_rootfs() {
 	ensure_dir "$ROOTFS"
 	ensure_dir "$RUNTIME_DIR"
 
-	for path in "$ROOTFS/dev" "$ROOTFS/dev/binderfs" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/tmp" "$ROOTFS/run"; do
+	for path in "$ROOTFS/dev" "$ROOTFS/dev/binderfs" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/tmp" "$ROOTFS/run" "$ROOTFS/usr" "$ROOTFS/usr/local" "$ROOTFS/usr/local/bin"; do
 		ensure_dir "$path"
 	done
 

@@ -6,7 +6,7 @@
 #   - hwservicemanager: HIDL binder context manager.
 
 on init
-    export PATH /system/bin:/system/xbin
+    export PATH /usr/local/bin:/system/bin:/system/xbin
     export LD_LIBRARY_PATH /system/lib64:/system/lib
     setprop capsule.ready 0
 

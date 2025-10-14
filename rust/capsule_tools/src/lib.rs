@@ -6,5 +6,5 @@
 pub mod binder;
 mod error;
 
-pub use crate::binder::{wait_for_binder_device, BinderDeviceConfig};
+pub use crate::binder::{list_services, wait_for_binder_device, BinderDeviceConfig};
 pub use crate::error::{Error, Result};

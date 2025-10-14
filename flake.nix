@@ -1,92 +1,158 @@
 {
   description = "webos mac-only dev";
 
+  nixConfig = {
+    "env.NIX_CURL_FLAGS" = "--retry 15 --retry-all-errors --retry-delay 5";
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, android-nixpkgs }:
     flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ] (system:
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ rust-overlay.overlays.default ];
+          overlays = [
+            rust-overlay.overlays.default
+            android-nixpkgs.overlays.default
+          ];
           config = {
-            android_sdk.accept_license = true;
             allowUnfree = true;
           };
         };
+
         rust = pkgs.rust-bin.stable.latest.default.override {
           targets = [ "x86_64-linux-android" "aarch64-linux-android" ];
           extensions = [ "rust-src" "clippy" "rustfmt" ];
         };
-        # Lightweight composition for CI: just NDK and build tools
-        androidCompositionCI = pkgs.androidenv.composeAndroidPackages {
-          includeNDK = true;
-          platformVersions = [ "34" ];
-          buildToolsVersions = [ "34.0.0" ];
-        };
-        # Full composition for dev: includes emulator and system images
-        androidComposition = pkgs.androidenv.composeAndroidPackages {
-          includeNDK = true;
-          includeEmulator = true;
-          includeSources = false;
-          includeSystemImages = true;
-          systemImageTypes = [ "default" ];
-          abiVersions = [ "arm64-v8a" "x86_64" ];
-          platformVersions = [ "34" ];
-          buildToolsVersions = [ "34.0.0" ];
-        };
-        ndk = "${androidComposition.androidsdk}/libexec/android-sdk/ndk-bundle";
-        # Map Nix system to NDK prebuilt directory name
-        ndkHost = if pkgs.stdenv.isDarwin then "darwin-x86_64" else "linux-x86_64";
-        androidSdk = "${androidComposition.androidsdk}/libexec/android-sdk";
+
+        androidSdkEnv = pkgs.androidSdk (sdkPkgs:
+          let
+            systemImage =
+              if pkgs.stdenv.isDarwin && pkgs.stdenv.isAarch64 then
+                sdkPkgs.system-images-android-34-default-arm64-v8a
+              else
+                sdkPkgs.system-images-android-34-default-x86-64;
+          in
+          with sdkPkgs; [
+            cmdline-tools-latest
+            build-tools-34-0-0
+            emulator
+            ndk-26-3-11579264
+            platform-tools
+            platforms-android-34
+            systemImage
+          ]);
+
+        androidSdkStorePath = "${androidSdkEnv}/share/android-sdk";
       in {
         devShells.default = pkgs.mkShell {
           packages = [
             rust
-            pkgs.android-tools
             pkgs.just
             pkgs.cmake
             pkgs.ninja
             pkgs.pkg-config
+            pkgs.rsync
+            pkgs.jdk17_headless
+            pkgs.unzip
+            androidSdkEnv
           ];
-          ANDROID_SDK_ROOT = androidSdk;
-          ANDROID_HOME = androidSdk;
-          ANDROID_NDK_HOME = ndk;
-          ANDROID_NDK_ROOT = ndk;
-          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER  =
-            "${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/x86_64-linux-android24-clang";
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER =
-            "${ndk}/toolchains/llvm/prebuilt/${ndkHost}/bin/aarch64-linux-android24-clang";
           shellHook = ''
-            export PATH="${androidSdk}/cmdline-tools/latest/bin:${androidSdk}/emulator:${androidSdk}/platform-tools:$PATH"
+            export JAVA_HOME="${pkgs.jdk17_headless}"
+            export PATH="$JAVA_HOME/bin:$PATH"
+
+            local_sdk="$HOME/.android-sdk"
+            if [ ! -e "$local_sdk" ]; then
+              ln -s "${androidSdkStorePath}" "$local_sdk"
+            elif [ ! -L "$local_sdk" ]; then
+              echo "warning: $local_sdk exists and is not a symlink; skipping" >&2
+            else
+              current_target="$(readlink "$local_sdk" || true)"
+              if [ "$current_target" != "${androidSdkStorePath}" ]; then
+                ln -sf "${androidSdkStorePath}" "$local_sdk"
+              fi
+            fi
+
+            export ANDROID_SDK_ROOT="$local_sdk"
+            export ANDROID_HOME="$ANDROID_SDK_ROOT"
+            export ANDROID_USER_HOME="$HOME/.android"
+            export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+            unset ANDROID_PREFS_ROOT
+            unset ANDROID_SDK_HOME
+
+            if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ]; then
+              export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+            elif [ -d "$ANDROID_SDK_ROOT/cmdline-tools/13.0/bin" ]; then
+              export PATH="$ANDROID_SDK_ROOT/cmdline-tools/13.0/bin:$PATH"
+            fi
+            export PATH="$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$PATH"
+
+            if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
+              ndk_dir="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1)"
+              if [ -n "$ndk_dir" ]; then
+                export ANDROID_NDK_HOME="$ndk_dir"
+                export ANDROID_NDK_ROOT="$ndk_dir"
+                host_tag="$(ls "$ndk_dir/toolchains/llvm/prebuilt" 2>/dev/null | sort | tail -n1)"
+                if [ -n "$host_tag" ]; then
+                  export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$ndk_dir/toolchains/llvm/prebuilt/$host_tag/bin/x86_64-linux-android24-clang"
+                  export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ndk_dir/toolchains/llvm/prebuilt/$host_tag/bin/aarch64-linux-android24-clang"
+                fi
+              fi
+            fi
           '';
         };
 
         apps.ci = {
           type = "app";
           program = let
-            ndkCI = "${androidCompositionCI.androidsdk}/libexec/android-sdk/ndk-bundle";
-          in "${pkgs.writeShellScript "ci" ''
-            export PATH="${pkgs.lib.makeBinPath [
-              rust
-              pkgs.android-tools
-              pkgs.just
-              pkgs.cmake
-              pkgs.ninja
-              pkgs.pkg-config
-              pkgs.gcc
-            ]}:$PATH"
-            export ANDROID_SDK_ROOT="${androidCompositionCI.androidsdk}/libexec/android-sdk"
-            export ANDROID_NDK_HOME="${ndkCI}"
-            export ANDROID_NDK_ROOT="${ndkCI}"
-            export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="${ndkCI}/toolchains/llvm/prebuilt/${ndkHost}/bin/x86_64-linux-android24-clang"
-            export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ndkCI}/toolchains/llvm/prebuilt/${ndkHost}/bin/aarch64-linux-android24-clang"
-            exec ${./scripts/ci.sh}
-          ''}";
+            script = pkgs.writeShellScript "ci" ''
+              export PATH="${pkgs.lib.makeBinPath [
+                rust
+                pkgs.just
+                pkgs.cmake
+                pkgs.ninja
+                pkgs.pkg-config
+                pkgs.gcc
+                pkgs.jdk17_headless
+                pkgs.unzip
+              ]}:$PATH"
+
+              export JAVA_HOME="${pkgs.jdk17_headless}"
+              export PATH="$JAVA_HOME/bin:$PATH"
+
+              export ANDROID_SDK_ROOT="${androidSdkStorePath}"
+              export ANDROID_HOME="$ANDROID_SDK_ROOT"
+              export ANDROID_USER_HOME="$HOME/.android"
+              export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+              export ANDROID_PREFS_ROOT="$ANDROID_USER_HOME"
+              unset ANDROID_SDK_HOME
+
+              if [ -d "$ANDROID_SDK_ROOT/platform-tools" ]; then
+                export PATH="$ANDROID_SDK_ROOT/platform-tools:$PATH"
+              fi
+
+              if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
+                ndk_dir="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1)"
+                if [ -n "$ndk_dir" ]; then
+                  export ANDROID_NDK_HOME="$ndk_dir"
+                  export ANDROID_NDK_ROOT="$ndk_dir"
+                  host_tag="$(ls "$ndk_dir/toolchains/llvm/prebuilt" 2>/dev/null | sort | tail -n1)"
+                  if [ -n "$host_tag" ]; then
+                    export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$ndk_dir/toolchains/llvm/prebuilt/$host_tag/bin/x86_64-linux-android24-clang"
+                    export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ndk_dir/toolchains/llvm/prebuilt/$host_tag/bin/aarch64-linux-android24-clang"
+                  fi
+                fi
+              fi
+
+              exec ${./scripts/ci.sh}
+            '';
+          in "${script}";
         };
       });
 }

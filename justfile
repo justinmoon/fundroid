@@ -13,22 +13,45 @@ build-fb-arm64:
 
 # Build the SurfaceFlinger shim via CMake
 build-sf-shim:
-	@if [ -z "$${ANDROID_NDK_HOME:-}" ]; then echo "ANDROID_NDK_HOME must be set (try nix develop)"; exit 1; fi
+	@if [ -z "${ANDROID_NDK_HOME:-}" ]; then echo "ANDROID_NDK_HOME must be set (try nix develop)"; exit 1; fi
 	cmake -S rust/sf_shim -B target/sf_shim \
 		-DANDROID_PLATFORM_LIB_DIR="${ANDROID_PLATFORM_LIB_DIR:-}" \
-		-DCMAKE_TOOLCHAIN_FILE="$${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+		-DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
 		-DANDROID_ABI="${ANDROID_ABI:-arm64-v8a}" \
 		-DANDROID_PLATFORM=android-34
 	cmake --build target/sf_shim
 
 # emulator lifecycle (mac)
-# Note: SDK components are managed by flake.nix, no need to run emu-install
+
+emu-install:
+	@if [ -z "${ANDROID_SDK_ROOT:-}" ]; then \
+		echo "ANDROID_SDK_ROOT is not set. Enter the dev shell (nix develop) first."; \
+		exit 1; \
+	fi
+	@if [ ! -x "${ANDROID_SDK_ROOT}/emulator/emulator" ]; then \
+		echo "emulator binary not found under $${ANDROID_SDK_ROOT}/emulator"; \
+		exit 1; \
+	fi
+	@echo "Android SDK components are provided by Nix; no additional installation required."
+	@echo "emulator binary info:"
+	@file "${ANDROID_SDK_ROOT}/emulator/emulator"
 
 emu-create:
-	avdmanager create avd -n webosd -k "system-images;android-34;default;arm64-v8a" --device pixel_6 || true
+	ABI="${AVD_ABI:-arm64-v8a}"; \
+	avdmanager --verbose create avd \
+		-n webosd \
+		-k "system-images;android-34;default;${ABI}" \
+		--abi "${ABI}" \
+		--device pixel_6 \
+		--force
 
 emu-boot:
-	emulator @webosd -no-snapshot -gpu host -no-boot-anim &
+	@log_path="${EMULATOR_LOG:-$HOME/.android/webosd-emulator.log}"; \
+	mkdir -p "$(dirname "$log_path")"; \
+	emu_gpu="${EMULATOR_GPU:-swiftshader_indirect}"; \
+	emu_flags="${EMULATOR_FLAGS:-}"; \
+	echo "Launching emulator (log: $log_path)..." >&2; \
+	emulator @webosd -writable-system -no-snapshot -no-window -gpu "$emu_gpu" -no-boot-anim $emu_flags >"$log_path" 2>&1 &
 
 emu-root:
 	adb wait-for-device
@@ -43,41 +66,52 @@ detect-arch:
 	@adb shell uname -m | tr -d '\r'
 
 install-service-x86:
-	adb push target/x86_64-linux-android/release/webosd /system/bin/webosd
+	adb push rust/webosd/target/x86_64-linux-android/release/webosd /system/bin/webosd
 	adb shell chmod 0755 /system/bin/webosd
 	adb push init/init.webosd.rc /system/etc/init/init.webosd.rc
 	adb reboot
 
 install-service-arm64:
-	adb push target/aarch64-linux-android/release/webosd /system/bin/webosd
+	adb push rust/webosd/target/aarch64-linux-android/release/webosd /system/bin/webosd
 	adb shell chmod 0755 /system/bin/webosd
 	adb push init/init.webosd.rc /system/etc/init/init.webosd.rc
 	adb reboot
 
 # Auto-detect architecture and install service
 install-service:
-	@arch=$$(adb shell uname -m | tr -d '\r'); \
-	case "$$arch" in \
+	@arch=$(adb shell uname -m | tr -d '\r'); \
+	case "$arch" in \
 		aarch64) just install-service-arm64 ;; \
 		x86_64) just install-service-x86 ;; \
-		*) echo "Unsupported arch '$$arch' (expected aarch64 or x86_64)" >&2; exit 2 ;; \
+		*) echo "Unsupported arch '$arch' (expected aarch64 or x86_64)" >&2; exit 2 ;; \
 	esac
 
 # Auto-detect architecture, build, and deploy
 deploy-webosd:
-	@arch=$$(adb shell uname -m | tr -d '\r'); \
-	case "$$arch" in \
+	@arch=$(adb shell uname -m | tr -d '\r'); \
+	case "$arch" in \
 		aarch64) \
 			cargo build --manifest-path rust/webosd/Cargo.toml --target aarch64-linux-android --release; \
-			output="target/aarch64-linux-android/release/webosd" ;; \
+			output="rust/webosd/target/aarch64-linux-android/release/webosd" ;; \
 		x86_64) \
 			cargo build --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android --release; \
-			output="target/x86_64-linux-android/release/webosd" ;; \
-		*) echo "Unsupported arch '$$arch' (expected aarch64 or x86_64)" >&2; exit 2 ;; \
+			output="rust/webosd/target/x86_64-linux-android/release/webosd" ;; \
+		*) echo "Unsupported arch '$arch' (expected aarch64 or x86_64)" >&2; exit 2 ;; \
 	esac; \
-	adb push "$$output" /system/bin/webosd; \
+	adb wait-for-device; \
+	adb push "$output" /system/bin/webosd || { \
+		echo "Initial push failed, retrying after wait..." >&2; \
+		sleep 2; \
+		adb wait-for-device; \
+		adb push "$output" /system/bin/webosd; \
+	}; \
 	adb shell chmod 0755 /system/bin/webosd; \
-	adb push init/init.webosd.rc /system/etc/init/init.webosd.rc; \
+	adb push init/init.webosd.rc /system/etc/init/init.webosd.rc || { \
+		echo "Initial rc push failed, retrying after wait..." >&2; \
+		sleep 2; \
+		adb wait-for-device; \
+		adb push init/init.webosd.rc /system/etc/init/init.webosd.rc; \
+	}; \
 	adb reboot; \
 	adb wait-for-device
 
@@ -93,6 +127,12 @@ start-webosd:
 
 logs-webosd:
 	adb logcat -s webosd:*
+
+verify-milestone-a:
+	./scripts/test_milestone_a.sh
+
+verify-milestone-a-remote:
+	./scripts/test_milestone_a_remote.sh
 
 # CI target
 ci:

@@ -16,3 +16,7 @@ local.properties
 # Android emulator
 *.avd/
 .android/
+.android-sdk/
+
+# nix
+.direnv/

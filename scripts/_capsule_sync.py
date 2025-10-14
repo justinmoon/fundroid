@@ -9,12 +9,18 @@ import stat
 import struct
 import sys
 from collections import defaultdict, deque
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
-BINARY_SPECS: Sequence[Tuple[str, bool]] = (
-    ("system/bin/servicemanager", True),
-    ("system/bin/hwservicemanager", True),
-    ("system/bin/property_service", False),
+
+class BinarySpec(NamedTuple):
+    candidates: Tuple[str, ...]
+    required: bool = True
+
+
+BINARY_SPECS: Sequence[BinarySpec] = (
+    BinarySpec(("system/bin/servicemanager",)),
+    BinarySpec(("system/bin/hwservicemanager",)),
+    BinarySpec(("system/bin/property_service", "system/bin/bootstrap/property_service"), False),
 )
 
 CONFIG_FILES: Sequence[Tuple[str, bool]] = (
@@ -262,7 +268,9 @@ def toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def sync_artifacts(root: str, dest: str) -> Tuple[Dict[str, str], Dict[str, str], List[str]]:
+def sync_artifacts(
+    root: str, dest: str
+) -> Tuple[Dict[str, str], Dict[str, str], List[str], Set[str], List[str]]:
     root = os.path.abspath(root)
     dest = os.path.abspath(dest)
 
@@ -278,17 +286,23 @@ def sync_artifacts(root: str, dest: str) -> Tuple[Dict[str, str], Dict[str, str]
 
     missing_required: List[str] = []
     optional_missing: List[str] = []
-    for rel, required in BINARY_SPECS:
-        abs_path = os.path.join(root, rel)
-        if not (os.path.exists(abs_path) or os.path.islink(abs_path)):
-            if required:
-                missing_required.append(rel)
-                continue
-            optional_missing.append(rel)
+    for spec in BINARY_SPECS:
+        selected: Optional[str] = None
+        for candidate in spec.candidates:
+            abs_path = os.path.join(root, candidate)
+            if os.path.exists(abs_path) or os.path.islink(abs_path):
+                selected = candidate
+                break
+        if not selected:
+            choice = " or ".join(spec.candidates)
+            if spec.required:
+                missing_required.append(choice)
+            else:
+                optional_missing.append(choice)
             continue
-        queue.append(rel)
-        artifact_types[rel] = "binary"
-        source_map[rel] = rel
+        queue.append(selected)
+        artifact_types[selected] = "binary"
+        source_map[selected] = selected
 
     if missing_required:
         raise FileNotFoundError(
@@ -355,7 +369,7 @@ def sync_artifacts(root: str, dest: str) -> Tuple[Dict[str, str], Dict[str, str]
         if prefix:
             config_dir_prefixes.append(prefix)
 
-    return artifact_types, source_map, config_dir_prefixes, provided_externals
+    return artifact_types, source_map, config_dir_prefixes, provided_externals, optional_missing
 
 
 def write_manifest(
@@ -428,7 +442,13 @@ def main() -> None:
     destination = os.path.abspath(args.destination)
     manifest_path = os.path.abspath(args.manifest)
 
-    artifact_types, source_map, config_dir_prefixes, provided_externals = sync_artifacts(system_root, destination)
+    (
+        artifact_types,
+        source_map,
+        config_dir_prefixes,
+        provided_externals,
+        optional_missing,
+    ) = sync_artifacts(system_root, destination)
     artifacts = write_manifest(destination, manifest_path, artifact_types, source_map, config_dir_prefixes)
 
     summary: defaultdict[str, int] = defaultdict(int)
@@ -439,7 +459,6 @@ def main() -> None:
     for key in sorted(summary):
         print(f"  {key}: {summary[key]}", file=sys.stderr)
 
-    optional_missing = [rel for rel, required in BINARY_SPECS if not required and rel not in source_map]
     if optional_missing:
         for rel in optional_missing:
             print(f"Warning: optional binary '{rel}' not found in system image.", file=sys.stderr)

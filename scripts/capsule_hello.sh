@@ -64,6 +64,9 @@ wait_for_ready() {
 echo "capsule_hello: starting capsule..."
 "${SCRIPT_DIR}/run_capsule.sh" start >/dev/null
 
+echo "capsule_hello: pushing capsule tools..."
+"${SCRIPT_DIR}/push_capsule_tools.sh"
+
 wait_for_ready
 
 echo "capsule_hello: waiting for binder readiness..."

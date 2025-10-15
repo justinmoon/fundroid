@@ -11,13 +11,17 @@ ENTRY_REMOTE="$CAPSULE_BASE/$ENTRY_REL"
 PID_FILE="$CAPSULE_BASE/run/capsule.pid"
 LOG_FILE="$CAPSULE_BASE/run/init.log"
 
-ADB_ARGS=()
+declare -a ADB_ARGS=()
 if [[ -n "${ANDROID_SERIAL:-}" ]]; then
 	ADB_ARGS+=("-s" "$ANDROID_SERIAL")
 fi
 
 adb_cmd() {
-	adb "${ADB_ARGS[@]}" "$@"
+	if (( ${#ADB_ARGS[@]} )); then
+		adb "${ADB_ARGS[@]}" "$@"
+	else
+		adb "$@"
+	fi
 }
 
 adb_shell() {
@@ -42,8 +46,10 @@ push_rootfs() {
 		exit 1
 	fi
 	adb_shell "mkdir -p '$CAPSULE_BASE'"
-	adb_cmd push "$ROOTFS_LOCAL" "$CAPSULE_BASE" >/dev/null
+	adb_shell "mkdir -p '$CAPSULE_BASE/rootfs'"
+	adb_cmd push "$ROOTFS_LOCAL/." "$CAPSULE_BASE/rootfs" >/dev/null
 	adb_shell "chmod 0755 '$ENTRY_REMOTE'"
+	adb_shell "chmod 0755 '$CAPSULE_BASE/rootfs/scripts/capsule_supervisor.sh'" >/dev/null 2>&1 || true
 }
 
 prepare_capsule() {
@@ -79,7 +85,7 @@ if [ -f "\$PID_FILE" ]; then
 	fi
 fi
 mkdir -p "\$(dirname "\$PID_FILE")"
-/system/bin/toybox nohup sh -c "CAPSULE_BASE='$CAPSULE_BASE' \$ENTRY exec /system/bin/init" >"\$LOG_FILE" 2>&1 &
+/system/bin/toybox nohup sh -c "CAPSULE_BASE='$CAPSULE_BASE' \$ENTRY execns /scripts/capsule_supervisor.sh daemon" >"\$LOG_FILE" 2>&1 &
 echo \$! > "\$PID_FILE"
 EOF
 
@@ -111,6 +117,9 @@ fi
 if [ -f "\$ENTRY" ]; then
 	CAPSULE_BASE='$CAPSULE_BASE' "\$ENTRY" teardown
 fi
+setprop sys.capsule.ready 0 >/dev/null 2>&1 || true
+setprop vendor.capsule.ready 0 >/dev/null 2>&1 || true
+setprop capsule.ready 0 >/dev/null 2>&1 || true
 EOF
 
 	adb_shell "$remote"
@@ -134,14 +143,27 @@ else
 fi
 if [ -f "\$ENTRY" ]; then
 	CAPSULE_BASE='$CAPSULE_BASE' "\$ENTRY" status
+	CAPSULE_BASE='$CAPSULE_BASE' "\$ENTRY" exec /scripts/capsule_supervisor.sh status
 else
 	echo "capsule_entry.sh not deployed (run start first)"
 fi
 ready=\$(getprop capsule.ready 2>/dev/null)
+sys_ready=\$(getprop sys.capsule.ready 2>/dev/null)
+vendor_ready=\$(getprop vendor.capsule.ready 2>/dev/null)
 if [ -n "\$ready" ]; then
 	echo "capsule.ready=\$ready"
 else
 	echo "capsule.ready=<unset>"
+fi
+if [ -n "\$sys_ready" ]; then
+	echo "sys.capsule.ready=\$sys_ready"
+else
+	echo "sys.capsule.ready=<unset>"
+fi
+if [ -n "\$vendor_ready" ]; then
+	echo "vendor.capsule.ready=\$vendor_ready"
+else
+	echo "vendor.capsule.ready=<unset>"
 fi
 EOF
 

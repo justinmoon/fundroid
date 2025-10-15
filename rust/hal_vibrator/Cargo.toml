@@ -1,0 +1,12 @@
+[package]
+name = "hal_vibrator"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "hal_vibrator"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0.100"
+bitflags = "2.6.0"

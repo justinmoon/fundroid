@@ -15,11 +15,53 @@ build-capsule-tools:
 	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target x86_64-linux-android --release
 	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target aarch64-linux-android --release
 
+build-hal-ndk:
+	@if [ -z "${ANDROID_NDK_HOME:-}" ]; then echo "ANDROID_NDK_HOME must be set (try nix develop)"; exit 1; fi
+	@for abi in arm64-v8a x86_64; do \
+		case "$$abi" in \
+			arm64-v8a) triple="aarch64-linux-android";; \
+			x86_64) triple="x86_64-linux-android";; \
+		esac; \
+		cmake -S rust/hal_shims/common -B target/hal_shims/$$abi/common \
+			-DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+			-DANDROID_ABI=$$abi \
+			-DANDROID_PLATFORM=android-34 >/dev/null; \
+		cmake --build target/hal_shims/$$abi/common --config Release >/dev/null; \
+		mkdir -p target/hal_shims/$$abi; \
+		cp target/hal_shims/$$abi/common/libbinder_ndk_shim.a target/hal_shims/$$abi/; \
+		cmake -S rust/hal_shims/vibrator -B target/hal_shims/$$abi/vibrator \
+			-DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+			-DANDROID_ABI=$$abi \
+			-DANDROID_PLATFORM=android-34 >/dev/null; \
+		cmake --build target/hal_shims/$$abi/vibrator --config Release >/dev/null; \
+		cp target/hal_shims/$$abi/vibrator/libvibrator_shim.a target/hal_shims/$$abi/; \
+	done
+	HAL_SHIM_BUILD_ROOT=target/hal_shims cargo build --manifest-path rust/hal_ndk/Cargo.toml --target aarch64-linux-android --release
+	HAL_SHIM_BUILD_ROOT=target/hal_shims cargo build --manifest-path rust/hal_ndk/Cargo.toml --target x86_64-linux-android --release
+	HAL_SHIM_BUILD_ROOT=target/hal_shims cargo build --manifest-path rust/hal_vibrator/Cargo.toml --target aarch64-linux-android --release
+	HAL_SHIM_BUILD_ROOT=target/hal_shims cargo build --manifest-path rust/hal_vibrator/Cargo.toml --target x86_64-linux-android --release
+
+hal-ping:
+	@if [ -z "${ANDROID_SERIAL:-}" ]; then adb wait-for-device; fi
+	adb push rust/hal_ndk/target/$$(just detect-arch)-linux-android/release/hal_ping /data/local/tmp/
+	adb shell /data/local/tmp/hal_ping android.hardware.vibrator.IVibrator/default
+
+vib-demo:
+	@if [ -z "${ANDROID_SERIAL:-}" ]; then adb wait-for-device; fi
+	adb push rust/hal_vibrator/target/$$(just detect-arch)-linux-android/release/vib_demo /data/local/tmp/
+	adb shell /data/local/tmp/vib_demo "${DURATION_MS:-60}"
+
 capsule-smoke:
 	./scripts/capsule_smoke.sh
 
 capsule-hello:
 	./scripts/capsule_hello.sh
+
+hal-smoke:
+	./scripts/hal_smoke.sh
+
+capsule-hal-smoke:
+	./scripts/capsule_hal_smoke.sh
 
 # Build the SurfaceFlinger shim via CMake
 build-sf-shim:

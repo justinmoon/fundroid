@@ -4,6 +4,7 @@ set -euo pipefail
 STATE_DIR="/run/capsule"
 PID_DIR="${STATE_DIR}/pids"
 LOG_FILE="${STATE_DIR}/capsule-supervisor.log"
+VIBRATOR_SERVICE_BIN="${CAPSULE_VIBRATOR_SERVICE:-/vendor/bin/hw/android.hardware.vibrator-service.pixel}"
 
 export PATH="/system/bin:/system/xbin:/usr/local/bin:${PATH:-}"
 export LD_LIBRARY_PATH="/system/lib64:/system/lib:${LD_LIBRARY_PATH:-}"
@@ -59,7 +60,7 @@ stop_service() {
 }
 
 stop_all() {
-	for svc in hwservicemanager servicemanager; do
+	for svc in hwservicemanager servicemanager vibrator; do
 		stop_service "${svc}"
 	done
 }
@@ -100,6 +101,11 @@ daemon() {
 
 	ensure_service_running servicemanager /system/bin/servicemanager
 	ensure_service_running hwservicemanager /system/bin/hwservicemanager
+	if [ -x "${VIBRATOR_SERVICE_BIN}" ]; then
+		ensure_service_running vibrator "${VIBRATOR_SERVICE_BIN}"
+	else
+		log "vibrator service binary not found at ${VIBRATOR_SERVICE_BIN}; skipping"
+	fi
 
 	# Wait for binder managers to publish themselves before marking ready.
 	for _ in 1 2 3 4 5; do
@@ -114,6 +120,9 @@ daemon() {
 	while true; do
 		ensure_service_running servicemanager /system/bin/servicemanager
 		ensure_service_running hwservicemanager /system/bin/hwservicemanager
+		if [ -x "${VIBRATOR_SERVICE_BIN}" ]; then
+			ensure_service_running vibrator "${VIBRATOR_SERVICE_BIN}"
+		fi
 
 		if ! all_services_healthy; then
 			set_ready_prop 0

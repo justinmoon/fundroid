@@ -80,7 +80,19 @@ TOOLS=(wait_for_binder list_services)
 
 for tool in "${TOOLS[@]}"; do
 	if [[ ! -f "$LOCAL_TARGET_DIR/$tool" ]]; then
-		echo "Missing $tool binary at $LOCAL_TARGET_DIR/$tool. Run 'just build-capsule-tools' first." >&2
+		missing=1
+		break
+	fi
+done
+
+if [[ -n "${missing:-}" ]]; then
+	echo "Building capsule tools for ${TARGET_TRIPLE}..." >&2
+	( cd "$REPO_ROOT" && cargo build --manifest-path rust/capsule_tools/Cargo.toml --target "$TARGET_TRIPLE" --release )
+fi
+
+for tool in "${TOOLS[@]}"; do
+	if [[ ! -f "$LOCAL_TARGET_DIR/$tool" ]]; then
+		echo "Failed to build $tool binary at $LOCAL_TARGET_DIR/$tool" >&2
 		exit 3
 	fi
 done

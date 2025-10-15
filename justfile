@@ -90,7 +90,14 @@ emu-boot:
 		printf '%s\n' "${serial}" > .emulator-serial; \
 		echo "Emulator serial: ${serial}" >&2; \
 	else \
-		echo "Warning: could not determine emulator serial." >&2; \
+		echo "Error: failed to determine emulator serial; see ${log_path} for details." >&2; \
+		pid="$(cat .emulator-pid 2>/dev/null || true)"; \
+		if [ -n "${pid}" ]; then \
+			kill "${pid}" >/dev/null 2>&1 || true; \
+			rm -f .emulator-pid; \
+		fi; \
+		rm -f .emulator-serial; \
+		exit 1; \
 	fi
 
 emu-root:

@@ -105,11 +105,13 @@ collect_capsule_artifacts() {
 	if [[ -z "$CAPSULE_ARTIFACT_DIR" || ! -d "$CAPSULE_ARTIFACT_DIR" ]]; then
 		return
 	fi
-	if [[ -z "${CI_ARTIFACTS_DIR:-}" ]]; then
+	local dest_root="${CI_ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
+	local dest="${dest_root}/capsule"
+	mkdir -p "$dest"
+	if [[ "$dest" == "$CAPSULE_ARTIFACT_DIR" ]]; then
 		return
 	fi
-	mkdir -p "${CI_ARTIFACTS_DIR}/capsule"
-	cp -a "${CAPSULE_ARTIFACT_DIR}/." "${CI_ARTIFACTS_DIR}/capsule/" >/dev/null 2>&1 || true
+	cp -a "${CAPSULE_ARTIFACT_DIR}/." "$dest/" >/dev/null 2>&1 || true
 }
 
 run_capsule_ci() {

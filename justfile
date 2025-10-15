@@ -31,7 +31,7 @@ build-sf-shim:
 		-DANDROID_PLATFORM=android-34
 	cmake --build target/sf_shim
 
-# emulator lifecycle (mac)
+# emulator lifecycle (mac, per-worktree AVD)
 
 emu-install:
 	@if [ -z "${ANDROID_SDK_ROOT:-}" ]; then \
@@ -47,33 +47,102 @@ emu-install:
 	@file "${ANDROID_SDK_ROOT}/emulator/emulator"
 
 emu-create:
+	@branch="$(git rev-parse --abbrev-ref HEAD | tr -c '[:alnum:]-' '-' | sed 's/-*$//')"; \
+	if [ -z "${branch}" ]; then branch="default"; fi; \
 	ABI="${AVD_ABI:-arm64-v8a}"; \
+	name="webosd-${branch}"; \
+	echo "Creating AVD '${name}' for branch '${branch}' (ABI=${ABI})"; \
 	avdmanager --verbose create avd \
-		-n webosd \
+		-n "${name}" \
 		-k "system-images;android-34;default;${ABI}" \
 		--abi "${ABI}" \
 		--device pixel_6 \
-		--force
+		--force; \
+	echo "${name}" > .avd-name
 
 emu-boot:
-	@log_path="${EMULATOR_LOG:-$HOME/.android/webosd-emulator.log}"; \
-	mkdir -p "$(dirname "$log_path")"; \
+	@name="$(cat .avd-name 2>/dev/null || true)"; \
+	if [ -z "${name}" ]; then \
+		echo "No .avd-name found; run 'just emu-create' first." >&2; \
+		exit 1; \
+	fi; \
+	log_path="${EMULATOR_LOG:-${HOME}/.android/${name}-emulator.log}"; \
+	mkdir -p "$(dirname "${log_path}")"; \
 	emu_gpu="${EMULATOR_GPU:-swiftshader_indirect}"; \
 	emu_flags="${EMULATOR_FLAGS:-}"; \
-	echo "Launching emulator (log: $log_path)..." >&2; \
-	emulator @webosd -writable-system -no-snapshot -no-window -gpu "$emu_gpu" -no-boot-anim $emu_flags >"$log_path" 2>&1 &
+	echo "Launching emulator '@${name}' (log: ${log_path})" >&2; \
+	before="$(adb devices | awk 'NR>1 {print $1}')"; \
+	emulator "@${name}" -writable-system -no-snapshot -no-window -gpu "${emu_gpu}" -no-boot-anim ${emu_flags} >"${log_path}" 2>&1 & \
+	echo $! > .emulator-pid; \
+	sleep 5; \
+	after="$(adb devices | awk 'NR>1 {print $1}')"; \
+	serial=""; \
+	for candidate in ${after}; do \
+		if ! printf '%s\n' "${before}" | grep -qx "${candidate}"; then \
+			serial="${candidate}"; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "${serial}" ]; then \
+		serial="$(adb devices | awk 'NR>1 && $1 ~ /^emulator-/' | tail -n 1)"; \
+	fi; \
+	if [ -n "${serial}" ]; then \
+		printf '%s\n' "${serial}" > .emulator-serial; \
+		echo "Emulator serial: ${serial}" >&2; \
+	else \
+		echo "Warning: could not determine emulator serial." >&2; \
+	fi
 
 emu-root:
-	adb wait-for-device
-	adb root || true
-	adb disable-verity || true
-	adb reboot
-	adb wait-for-device
-	adb root || true
+	@serial="${ANDROID_SERIAL:-$(cat .emulator-serial 2>/dev/null || true)}"; \
+	if [ -n "${serial}" ]; then \
+		export ANDROID_SERIAL="${serial}"; \
+		echo "Using emulator serial ${serial}"; \
+	fi; \
+	adb wait-for-device; \
+	adb root || true; \
+	adb disable-verity || true; \
+	adb reboot; \
+	adb wait-for-device; \
+	adb root || true; \
 	adb remount
 
+emu-stop:
+	@pid="$(cat .emulator-pid 2>/dev/null || true)"; \
+	serial="${ANDROID_SERIAL:-$(cat .emulator-serial 2>/dev/null || true)}"; \
+	if [ -n "${pid}" ]; then \
+		if kill -0 "${pid}" >/dev/null 2>&1; then \
+			echo "Stopping emulator PID ${pid}"; \
+			kill "${pid}"; \
+			wait "${pid}" >/dev/null 2>&1 || true; \
+		else \
+			echo "Stale emulator PID file (process ${pid} not running)"; \
+		fi; \
+		rm -f .emulator-pid; \
+	fi; \
+	if [ -n "${serial}" ]; then \
+		adb -s "${serial}" emu kill >/dev/null 2>&1 || true; \
+	fi
+
+emu-status:
+	@serial="${ANDROID_SERIAL:-$(cat .emulator-serial 2>/dev/null || true)}"; \
+	if [ -z "${serial}" ]; then \
+		echo "No emulator serial recorded for this worktree (expecting .emulator-serial)."; \
+		exit 0; \
+	fi; \
+	echo "Worktree emulator serial: ${serial}"; \
+	if adb -s "${serial}" shell echo ok >/dev/null 2>&1; then \
+		echo "Status: RUNNING"; \
+	else \
+		echo "Status: offline"; \
+	fi; \
+	adb -s "${serial}" shell getprop ro.build.fingerprint 2>/dev/null || true
+
+emu-list:
+	./scripts/list_branch_emulators.sh
+
 capsule-shell:
-	@serial="${ANDROID_SERIAL:-}"; \
+	@serial="${ANDROID_SERIAL:-$(cat .emulator-serial 2>/dev/null || true)}"; \
 	if [ -n "$serial" ]; then \
 		adb -s "$serial" wait-for-device; \
 	else \

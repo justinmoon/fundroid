@@ -141,6 +141,20 @@ for path in "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/sys/fs" "$ROOTFS
 		fi
 	done
 
+	# Expose binder device nodes outside the rootfs so host-side processes
+	# (webosd bridges) can opt into targeting the capsule explicitly.
+	ensure_dir "$CAPSULE_BASE/dev"
+	for node in binder hwbinder vndbinder; do
+		src="$ROOTFS/dev/$node"
+		dst="$CAPSULE_BASE/dev/$node"
+		if [ -e "$src" ]; then
+			if [ -L "$dst" ] || [ -e "$dst" ]; then
+				rm -f "$dst" >/dev/null 2>&1 || true
+			fi
+			ln -sf "rootfs/dev/$node" "$dst"
+		fi
+	done
+
 	for mp in system vendor product system_ext odm apex; do
 		src="/$mp"
 		dst="$ROOTFS/$mp"
@@ -179,6 +193,9 @@ teardown_rootfs() {
 	for node in binder hwbinder vndbinder; do
 		if [ -L "$ROOTFS/dev/$node" ]; then
 			rm -f "$ROOTFS/dev/$node"
+		fi
+		if [ -L "$CAPSULE_BASE/dev/$node" ]; then
+			rm -f "$CAPSULE_BASE/dev/$node"
 		fi
 	done
 	rm -rf "$ROOTFS/dev/log"

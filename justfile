@@ -11,6 +11,16 @@ build-fb-x86:
 build-fb-arm64:
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 
+build-capsule-tools:
+	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target x86_64-linux-android --release
+	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target aarch64-linux-android --release
+
+capsule-smoke:
+	./scripts/capsule_smoke.sh
+
+capsule-hello:
+	./scripts/capsule_hello.sh
+
 # Build the SurfaceFlinger shim via CMake
 build-sf-shim:
 	@if [ -z "${ANDROID_NDK_HOME:-}" ]; then echo "ANDROID_NDK_HOME must be set (try nix develop)"; exit 1; fi

@@ -20,6 +20,20 @@ is_mounted() {
 	grep -F " $1 " /proc/mounts >/dev/null 2>&1
 }
 
+mount_fs() {
+	src_type="$1"
+	target="$2"
+	opts="${3:-}"
+	if is_mounted "$target"; then
+		return
+	fi
+	if [ -n "$opts" ]; then
+		"$TOYBOX" mount -t "$src_type" -o "$opts" "$src_type" "$target"
+	else
+		"$TOYBOX" mount -t "$src_type" "$src_type" "$target"
+	fi
+}
+
 bind_mount_dir() {
 	src="$1"
 	dst="$2"
@@ -27,16 +41,34 @@ bind_mount_dir() {
 		return
 	fi
 	ensure_dir "$dst"
-	if ! is_mounted "$dst"; then
-		"$TOYBOX" mount --bind "$src" "$dst"
+	if is_mounted "$dst"; then
+		unmount_path "$dst"
+	fi
+	if ! "$TOYBOX" mount -o rbind "$src" "$dst" 2>/dev/null; then
+		"$TOYBOX" mount -o bind "$src" "$dst"
 	fi
 }
 
-mount_tmpfs() {
-	target="$1"
-	type="$2"
-	if ! is_mounted "$target"; then
-		"$TOYBOX" mount -t "$type" "$type" "$target"
+bind_mount_file() {
+	src="$1"
+	dst="$2"
+	if [ -d "$src" ]; then
+		bind_mount_dir "$src" "$dst"
+		return
+	fi
+	if [ ! -e "$src" ]; then
+		return
+	fi
+	ensure_dir "$(dirname "$dst")"
+	if [ ! -e "$dst" ]; then
+		rm -f "$dst" >/dev/null 2>&1 || true
+		"$TOYBOX" touch "$dst"
+	fi
+	if is_mounted "$dst"; then
+		unmount_path "$dst"
+	fi
+	if ! "$TOYBOX" mount -o rbind "$src" "$dst" 2>/dev/null; then
+		"$TOYBOX" mount -o bind "$src" "$dst"
 	fi
 }
 
@@ -82,17 +114,30 @@ prepare_rootfs() {
 	ensure_dir "$ROOTFS"
 	ensure_dir "$RUNTIME_DIR"
 
-	for path in "$ROOTFS/dev" "$ROOTFS/dev/binderfs" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/tmp" "$ROOTFS/run"; do
+for path in "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/sys/fs" "$ROOTFS/sys/fs/selinux" "$ROOTFS/tmp" "$ROOTFS/run" "$ROOTFS/usr" "$ROOTFS/usr/local" "$ROOTFS/usr/local/bin" "$ROOTFS/mnt" "$ROOTFS/mnt/vendor" "$ROOTFS/mnt/product" "$ROOTFS/debug_ramdisk" "$ROOTFS/second_stage_resources" "$ROOTFS/linkerconfig"; do
 		ensure_dir "$path"
 	done
 
+	if ! is_mounted "$ROOTFS"; then
+		"$TOYBOX" mount -o bind "$ROOTFS" "$ROOTFS"
+	fi
+
+	mount_fs tmpfs "$ROOTFS/dev" "mode=0755,dev"
+	ensure_dir "$ROOTFS/dev/pts"
+	ensure_dir "$ROOTFS/dev/socket"
+	ensure_dir "$ROOTFS/dev/dm-user"
+	mount_fs devpts "$ROOTFS/dev/pts"
+
+	ensure_dir "$ROOTFS/dev/binderfs"
 	if ! is_mounted "$ROOTFS/dev/binderfs"; then
 		"$TOYBOX" mount -t binder binderfs "$ROOTFS/dev/binderfs"
 	fi
-
 	for node in binder hwbinder vndbinder; do
+		if [ -e "$ROOTFS/dev/$node" ]; then
+			rm -f "$ROOTFS/dev/$node"
+		fi
 		if [ -e "$ROOTFS/dev/binderfs/$node" ]; then
-			ln -sf binderfs/$node "$ROOTFS/dev/$node"
+			ln -sf binderfs/"$node" "$ROOTFS/dev/$node"
 		fi
 	done
 
@@ -104,17 +149,25 @@ prepare_rootfs() {
 		fi
 	done
 
+	bind_mount_dir "/linkerconfig" "$ROOTFS/linkerconfig"
+
+	bind_mount_dir "/dev/log" "$ROOTFS/dev/log"
+	bind_mount_dir "/dev/socket" "$ROOTFS/dev/socket"
+
 	ensure_char_device "$ROOTFS/dev/null" 1 3
 	ensure_char_device "$ROOTFS/dev/zero" 1 5
 	ensure_char_device "$ROOTFS/dev/full" 1 7
 	ensure_char_device "$ROOTFS/dev/random" 1 8
 	ensure_char_device "$ROOTFS/dev/urandom" 1 9
 	ensure_char_device "$ROOTFS/dev/tty" 5 0
+	ensure_char_device "$ROOTFS/dev/kmsg" 1 11
 
-	mount_tmpfs "$ROOTFS/proc" proc
-	mount_tmpfs "$ROOTFS/sys" sysfs
-	mount_tmpfs "$ROOTFS/tmp" tmpfs
-	mount_tmpfs "$ROOTFS/run" tmpfs
+	mount_fs proc "$ROOTFS/proc"
+	mount_fs sysfs "$ROOTFS/sys"
+	mount_fs selinuxfs "$ROOTFS/sys/fs/selinux"
+	mount_fs tmpfs "$ROOTFS/tmp"
+	mount_fs tmpfs "$ROOTFS/run"
+	bind_mount_dir "/dev/__properties__" "$ROOTFS/dev/__properties__"
 
 	if [ ! -e "$ROOTFS/init.rc" ]; then
 		ln -sf init/init.capsule.rc "$ROOTFS/init.rc"
@@ -123,12 +176,12 @@ prepare_rootfs() {
 
 teardown_rootfs() {
 	cleanup_mounts
-	unmount_path "$ROOTFS/dev/binderfs"
 	for node in binder hwbinder vndbinder; do
 		if [ -L "$ROOTFS/dev/$node" ]; then
 			rm -f "$ROOTFS/dev/$node"
 		fi
 	done
+	rm -rf "$ROOTFS/dev/log"
 }
 
 exec_chroot() {
@@ -140,6 +193,19 @@ exec_chroot() {
 	exec "$TOYBOX" chroot "$ROOTFS" "$@"
 }
 
+exec_chroot_ns() {
+	if [ $# -eq 0 ]; then
+		set -- /system/bin/sh
+	fi
+	prepare_rootfs
+	if "$TOYBOX" which unshare >/dev/null 2>&1; then
+		log "entering rootfs with private mount namespace: $*"
+		exec "$TOYBOX" unshare -m -- "$TOYBOX" chroot "$ROOTFS" "$@"
+	fi
+	log "unshare unavailable; entering rootfs without namespace isolation: $*"
+	exec "$TOYBOX" chroot "$ROOTFS" "$@"
+}
+
 print_status() {
 	echo "CAPSULE_BASE=$CAPSULE_BASE"
 	echo "ROOTFS=$ROOTFS"
@@ -147,11 +213,12 @@ print_status() {
 		"$ROOTFS/system" \
 		"$ROOTFS/vendor" \
 		"$ROOTFS/apex" \
+		"$ROOTFS/dev/log" \
+		"$ROOTFS/dev/kmsg" \
 		"$ROOTFS/proc" \
 		"$ROOTFS/sys" \
 		"$ROOTFS/tmp" \
-		"$ROOTFS/run" \
-		"$ROOTFS/dev/binderfs"; do
+		"$ROOTFS/run"; do
 		if is_mounted "$path"; then
 			echo "mounted: $path"
 		else
@@ -163,8 +230,9 @@ print_status() {
 usage() {
 	cat <<EOF
 Usage: capsule_entry.sh <prepare|exec|teardown|status> [command...]
-  prepare    Setup mount points and binderfs inside the capsule rootfs.
+  prepare    Setup mount points inside the capsule rootfs.
   exec CMD   Ensure mounts and execute CMD via chroot (default: /system/bin/sh).
+  execns CMD Like 'exec' but isolates mount changes when unshare is available.
   teardown   Unmount capsule resources.
   status     Print mount status for capsule resources.
 EOF
@@ -185,6 +253,10 @@ case "$action" in
 	exec)
 		shift
 		exec_chroot "$@"
+		;;
+	execns)
+		shift
+		exec_chroot_ns "$@"
 		;;
 	teardown)
 		shift

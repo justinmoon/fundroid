@@ -18,5 +18,8 @@ local.properties
 .android/
 .android-sdk/
 
+# capsule run logs
+artifacts/
+
 # nix
 .direnv/

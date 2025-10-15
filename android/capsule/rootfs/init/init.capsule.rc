@@ -1,3 +1,59 @@
-# Capsule init configuration (Stage 2A placeholder)
-# Actual service configuration is added in Stage 3.
+# Capsule init configuration
+# Remember to document new services in this block as Stage 8 adds more components.
+# Current services:
+#   - property_service: Android property daemon for setprop/getprop handling.
+#   - servicemanager: Binder context manager.
+#   - hwservicemanager: HIDL binder context manager.
 
+on init
+    export PATH /usr/local/bin:/system/bin:/system/xbin
+    export LD_LIBRARY_PATH /system/lib64:/system/lib
+    setprop capsule.ready 0
+
+    mkdir /dev/log 0755 root root
+    mkdir /dev/socket 0755 root root
+    mkdir /dev/__properties__ 0770 root root
+    chmod 0660 /dev/kmsg
+
+    # Ensure binder device nodes have permissive access inside the capsule.
+    chown root root /dev/binder
+    chmod 0666 /dev/binder
+    chown root root /dev/hwbinder
+    chmod 0666 /dev/hwbinder
+    chown root root /dev/vndbinder
+    chmod 0666 /dev/vndbinder
+
+on boot
+    start property_service
+    start servicemanager
+    start hwservicemanager
+
+on property:init.svc.servicemanager=running && property:init.svc.hwservicemanager=running
+    setprop capsule.ready 1
+
+on property:init.svc.servicemanager=stopped
+    setprop capsule.ready 0
+
+on property:init.svc.hwservicemanager=stopped
+    setprop capsule.ready 0
+
+service property_service /system/bin/property_service
+    class core
+    user root
+    group root
+    critical
+    stdio_to_kmsg
+
+service servicemanager /system/bin/servicemanager
+    class core
+    user root
+    group root
+    critical
+    stdio_to_kmsg
+
+service hwservicemanager /system/bin/hwservicemanager
+    class core
+    user root
+    group root
+    critical
+    stdio_to_kmsg

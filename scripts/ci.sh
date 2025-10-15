@@ -32,6 +32,26 @@ run_rust_checks() {
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 }
 
+hal_smoke_enabled() {
+	case "${CI_ENABLE_HAL_SMOKE:-0}" in
+		1|true|TRUE|True) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+capsule_hal_smoke_enabled() {
+	case "${CI_ENABLE_CAPSULE_HAL_SMOKE:-0}" in
+		1|true|TRUE|True) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+run_hal_smoke_ci() {
+	local service="${CI_HAL_SMOKE_SERVICE:-android.hardware.vibrator.IVibrator/default}"
+	log "Running HAL smoke test against ${service}..."
+	./scripts/hal_smoke.sh "${service}"
+}
+
 capsule_job_enabled() {
 	case "${CI_ENABLE_CAPSULE:-0}" in
 		1|true|TRUE|True) return 0 ;;
@@ -157,6 +177,15 @@ run_capsule_ci() {
 		watchdog_state="$(<"$CAPSULE_WATCHDOG_STATE_FILE")"
 	fi
 
+	local capsule_hal_status=0
+	if capsule_hal_smoke_enabled; then
+		log "capsule-ci: running capsule HAL smoke..."
+		set +e
+		just capsule-hal-smoke
+		capsule_hal_status=$?
+		set -e
+	fi
+
 	kill_emulator
 	collect_capsule_artifacts
 
@@ -173,12 +202,21 @@ run_capsule_ci() {
 		return "$capsule_status"
 	fi
 
+	if [[ $capsule_hal_status -ne 0 ]]; then
+		log "capsule-ci: capsule-hal-smoke failed with status ${capsule_hal_status}." >&2
+		return "$capsule_hal_status"
+	fi
+
 	log "capsule-ci: capsule-hello succeeded."
 	return 0
 }
 
 log "Running CI checks..."
 run_rust_checks
+
+if hal_smoke_enabled; then
+	run_hal_smoke_ci
+fi
 
 if capsule_job_enabled; then
 	run_capsule_ci

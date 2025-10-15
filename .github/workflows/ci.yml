@@ -16,3 +16,11 @@ jobs:
 
       - name: Run CI
         run: nix run .#ci
+
+      - name: Upload capsule logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capsule-logs
+          path: artifacts/capsule
+          if-no-files-found: ignore

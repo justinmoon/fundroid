@@ -1,5 +1,10 @@
 /worktrees
 
+# Branch-specific emulator tracking
+.avd-name
+.emulator-serial
+.emulator-pid
+
 # Rust build artifacts
 **/target/
 **/*.rs.bk

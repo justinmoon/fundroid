@@ -1,27 +1,44 @@
 #![warn(clippy::all, clippy::pedantic)]
 
-use anyhow::Error;
 use anyhow::Result;
 use libc::c_ulong;
 use log::{debug, error, info};
 use std::ffi::CString;
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-fn main() {
+fn main() -> Result<()> {
     init_logger();
     info!("MiniOS phase1 init starting (pid={})", std::process::id());
 
     mount_required_fs();
+    info!("mounted dev/proc/sys");
+
+    if let Err(err) = Command::new("/system/bin/sh")
+        .arg("-c")
+        .arg("echo [minios_init] init running > /dev/kmsg")
+        .status()
+    {
+        error!("failed to write marker via shell: {err}");
+    }
 
     match drm_rect::fill_display((0x00, 0x88, 0xFF)) {
         Ok(()) => info!("display painted successfully"),
         Err(err) => error!("failed to paint display: {err:?}"),
     }
 
-    info!("entering idle loop");
+    info!("sleeping before reboot");
+    thread::sleep(Duration::from_secs(5));
+
+    info!("triggering reboot");
+    let _ = Command::new("/system/bin/sh")
+        .arg("-c")
+        .arg("/system/bin/reboot -f")
+        .status();
+
     loop {
         thread::sleep(Duration::from_secs(60));
     }
@@ -48,7 +65,7 @@ fn mount(
     fstype: &str,
     flags: c_ulong,
     data: Option<&str>,
-) -> Result<(), Error> {
+) -> Result<()> {
     let src_c = source.map(CString::new).transpose()?;
     let tgt_c = CString::new(target)?;
     let fs_c = CString::new(fstype)?;
@@ -105,7 +122,6 @@ impl log::Log for KmsgLogger {
             let _ = writeln!(file, "minios_init[{}]: {}", std::process::id(), record.args());
             let _ = file.flush();
         } else {
-            // Best effort console message if kmsg unavailable.
             eprintln!("minios_init[{}]: {}", std::process::id(), record.args());
         }
     }

@@ -101,8 +101,29 @@ if [[ -f "${ROOTFS_DIR}/init" ]]; then
 fi
 
 echo "[phase1] staging rootfs..."
-cp "${INIT_LOCAL}" "${ROOTFS_DIR}/init"
+if [[ -n "${CUSTOM_INIT:-}" ]]; then
+    echo "[phase1] using custom init from ${CUSTOM_INIT}"
+    cp "${CUSTOM_INIT}" "${ROOTFS_DIR}/init"
+else
+    cp "${INIT_LOCAL}" "${ROOTFS_DIR}/init"
+fi
 chmod 0755 "${ROOTFS_DIR}/init"
+
+mkdir -p "${ROOTFS_DIR}/bin" "${ROOTFS_DIR}/sbin"
+shell_candidates=(
+    "${ROOTFS_DIR}/system/bin/sh"
+    "${ROOTFS_DIR}/apex/com.android.runtime/bin/sh"
+    "${ROOTFS_DIR}/system/bin/microsh"
+)
+for candidate in "${shell_candidates[@]}"; do
+    if [[ -f "${candidate}" ]]; then
+        cp "${candidate}" "${ROOTFS_DIR}/bin/sh"
+        chmod 0755 "${ROOTFS_DIR}/bin/sh"
+        break
+    fi
+done
+cp "${INIT_LOCAL}" "${ROOTFS_DIR}/sbin/minios_init"
+chmod 0755 "${ROOTFS_DIR}/sbin/minios_init"
 
 for dep in "${deps[@]}"; do
     dest="${ROOTFS_DIR}${dep}"

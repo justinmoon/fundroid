@@ -11,6 +11,8 @@ This roadmap describes how we graduate from "Android with a Magisk patched init_
 ## Phase 1 — Minimal Userspace Without Android
 Goal: Replace Android userspace with our own ramdisk that boots, mounts the essentials, and hands us control.
 
+> See `plans/boot.md` for the step-by-step execution plan (emulator bring-up followed by Pixel 9a deployment).
+
 - Build a tiny initramfs (BusyBox or a Rust `init`) that mounts `/dev`, `/proc`, `/sys`, and the dynamic partitions we need (`/vendor`, `/system`).
 - Repack Pixel's `init_boot.img` with the new ramdisk.
 - Boot with `fastboot boot` first; only `fastboot flash init_boot` when stable.

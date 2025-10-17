@@ -11,6 +11,35 @@ build-fb-x86:
 build-fb-arm64:
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 
+build-drm-x86:
+	cargo build --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --release
+
+build-drm-arm64:
+	cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release
+
+run-drm-demo:
+	@arch=$$(adb shell uname -m | tr -d '\r'); \
+	case "$$arch" in \
+		aarch64) \
+			cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release; \
+			bin_path="rust/drm_rect/target/aarch64-linux-android/release/drm_rect" ;; \
+		x86_64) \
+			cargo build --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --release; \
+			bin_path="rust/drm_rect/target/x86_64-linux-android/release/drm_rect" ;; \
+		*) \
+			echo "Unsupported arch '$$arch' (expected aarch64 or x86_64)" >&2; \
+			exit 2 ;; \
+	esac; \
+	adb push "$$bin_path" /data/local/tmp/drm_rect >/dev/null; \
+	adb shell su -c 'setenforce 0' >/dev/null 2>&1 || true; \
+	adb shell su -c 'setprop ctl.stop surfaceflinger'; \
+	adb shell su -c 'setprop ctl.stop vendor.hwcomposer-3'; \
+	adb shell su -c '/data/local/tmp/drm_rect'; \
+	adb shell su -c 'setprop ctl.start vendor.hwcomposer-3'; \
+	adb shell su -c 'setprop ctl.start surfaceflinger'; \
+	adb shell su -c 'setenforce 1' >/dev/null 2>&1 || true; \
+	adb shell rm /data/local/tmp/drm_rect >/dev/null
+
 build-capsule-tools:
 	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target x86_64-linux-android --release
 	cargo build --manifest-path rust/capsule_tools/Cargo.toml --target aarch64-linux-android --release

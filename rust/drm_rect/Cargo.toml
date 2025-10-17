@@ -1,0 +1,10 @@
+[package]
+name = "drm_rect"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+android_logger = "0.14"
+anyhow = "1.0"
+drm = "0.14.1"
+log = "0.4"

@@ -20,6 +20,7 @@ run_rust_checks() {
 	cargo clippy --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android -- -D warnings
 	cargo clippy --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android -- -D warnings
 	cargo clippy --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android -- -D warnings
+	cargo clippy --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android -- -D warnings
 
 	log "Building tests..."
 	cargo test --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android --no-run
@@ -28,6 +29,7 @@ run_rust_checks() {
 	cargo test --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --no-run
 	cargo test --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --no-run
 	cargo test --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --no-run
+	cargo test --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android --no-run
 
 	log "Building release binaries..."
 	cargo build --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android --release
@@ -36,6 +38,7 @@ run_rust_checks() {
 	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
 	cargo build --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --release
 	cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release
+	cargo build --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android --release
 }
 
 hal_smoke_enabled() {

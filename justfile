@@ -17,6 +17,9 @@ build-drm-x86:
 build-drm-arm64:
 	cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release
 
+build-phase1:
+	./scripts/build_phase1.sh
+
 run-drm-demo:
 	@arch=$$(adb shell uname -m | tr -d '\r'); \
 	case "$$arch" in \

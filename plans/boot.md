@@ -50,5 +50,5 @@ Goal: boot a lightweight initramfs that paints the screen, first on the emulator
    - store per-instance `CUTTLEFISH_*` overrides in `/etc/cuttlefish/instances/<name>.env`,
    - provide local helpers (`scripts/cuttlefish_instance.sh`, `just cuttlefish-*`) to set images, (re)start, and tail logs without clobbering other agents.
    - add a weekly GC timer on the Hetzner host to remove stale instances/assemblies/env files. ✅
-3. **CI integration** – teach `just ci` to exercise `cuttlefish@<instance>` using the new deployment helpers so Hetzner-based jobs stay isolated.
-4. **Re-verify Phase 1 loop** – once the above lands, reboot the host service, confirm heartbeats in the console log, and iterate on the forced reboot behaviour.
+3. **CI integration** ✅ – `CI_ENABLE_CUTTLEFISH=1 just ci` now builds the Phase 1 artifacts, deploys them to a dedicated `ci-cuttlefish` instance, restarts the service, and fails the job if the console log lacks the `minios heartbeat` markers.
+4. **Re-verify Phase 1 loop** – now that automation exists, tighten the spec (better logging sink, reliable reboot) and expand coverage beyond the heartbeat smoke test.

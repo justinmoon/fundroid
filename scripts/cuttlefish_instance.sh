@@ -7,6 +7,24 @@ set -euo pipefail
 
 REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-hetzner}"
 REMOTE_HOME_CACHE=""
+HOST_SHORT="$(hostname 2>/dev/null || echo "")"
+HOST_FQDN="$(hostname -f 2>/dev/null || echo "")"
+
+is_local_host() {
+  case "${REMOTE_HOST}" in
+    ""|"local"|"localhost"|"127.0.0.1"|"$HOST_SHORT"|"$HOST_FQDN") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remote_shell() {
+  local script="$1"
+  if is_local_host; then
+    bash -lc "$script"
+  else
+    ssh "$REMOTE_HOST" "bash -lc $(printf '%q' "$script")"
+  fi
+}
 
 die() {
   echo "cuttlefish_instance: $*" >&2
@@ -60,7 +78,15 @@ remote_shell() {
 
 remote_home() {
   if [[ -z "${REMOTE_HOME_CACHE:-}" ]]; then
-    REMOTE_HOME_CACHE="$(remote_shell 'printf %s "$HOME"')"
+    if is_local_host; then
+      REMOTE_HOME_CACHE="$HOME"
+    else
+    if is_local_host; then
+      REMOTE_HOME_CACHE="$HOME"
+    else
+      REMOTE_HOME_CACHE="$(remote_shell 'printf %s "$HOME"')"
+    fi
+    fi
   fi
   printf '%s' "$REMOTE_HOME_CACHE"
 }
@@ -82,6 +108,17 @@ remote_instance_dir() {
   printf '%s/%s' "$(remote_instance_root)" "$INSTANCE"
 }
 
+copy_to_remote() {
+  local src="$1"
+  local dest="$2"
+  if is_local_host; then
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+  else
+    scp -q "$src" "${REMOTE_HOST}:$dest"
+  fi
+}
+
 record_instance() {
   local inst="$1"
   local root
@@ -91,11 +128,19 @@ record_instance() {
 
 remote_sudo() {
   local cmd="$1"
-  ssh "$REMOTE_HOST" "sudo bash -lc $(printf '%q' "$cmd")"
+  if is_local_host; then
+    sudo bash -lc "$cmd"
+  else
+    ssh "$REMOTE_HOST" "sudo bash -lc $(printf '%q' "$cmd")"
+  fi
 }
 
 remote_raw() {
-  ssh "$REMOTE_HOST" "$@"
+  if is_local_host; then
+    "$@"
+  else
+    ssh "$REMOTE_HOST" "$@"
+  fi
 }
 
 ensure_envdir() {
@@ -118,8 +163,14 @@ write_env_file() {
     [[ -n "$boot" ]] && printf 'CUTTLEFISH_BOOT_IMAGE=%s\n' "$boot"
     [[ -n "$init" ]] && printf 'CUTTLEFISH_INIT_BOOT_IMAGE=%s\n' "$init"
   } >"$tmp"
-  scp -q "$tmp" "${REMOTE_HOST}:/tmp/${inst}.env"
-  remote_sudo "install -m 0640 /tmp/${inst}.env /etc/cuttlefish/instances/${inst}.env && rm -f /tmp/${inst}.env"
+  if is_local_host; then
+    local temp_path="/tmp/${inst}.env"
+    install -m 0640 "$tmp" "$temp_path"
+    remote_sudo "install -m 0640 $temp_path /etc/cuttlefish/instances/${inst}.env && rm -f $temp_path"
+  else
+    scp -q "$tmp" "${REMOTE_HOST}:/tmp/${inst}.env"
+    remote_sudo "install -m 0640 /tmp/${inst}.env /etc/cuttlefish/instances/${inst}.env && rm -f /tmp/${inst}.env"
+  fi
   rm -f "$tmp"
 }
 
@@ -260,12 +311,12 @@ case "$COMMAND" in
     if [[ -n "$init_path" ]]; then
       [[ -f "$init_path" ]] || die "init image not found: $init_path"
       init_remote="${remote_dir}/init_boot.img"
-      scp -q "$init_path" "${REMOTE_HOST}:${init_remote}"
+      copy_to_remote "$init_path" "$init_remote"
     fi
     if [[ -n "$boot_path" ]]; then
       [[ -f "$boot_path" ]] || die "boot image not found: $boot_path"
       boot_remote="${remote_dir}/boot.img"
-      scp -q "$boot_path" "${REMOTE_HOST}:${boot_remote}"
+      copy_to_remote "$boot_path" "$boot_remote"
     fi
     local current_boot current_init
     current_boot="$(current_env_value CUTTLEFISH_BOOT_IMAGE)"

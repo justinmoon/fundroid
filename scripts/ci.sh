@@ -220,6 +220,76 @@ run_capsule_ci() {
 	return 0
 }
 
+cuttlefish_ci_instance() {
+	if [[ -n "${CUTTLEFISH_INSTANCE_OVERRIDE:-}" ]]; then
+		echo "${CUTTLEFISH_INSTANCE_OVERRIDE}"
+		return
+	fi
+	echo "ci-cuttlefish"
+}
+
+deploy_phase1_cuttlefish() {
+	local init_img="target/os/phase1/init_boot-phase1.img"
+	local boot_img="target/os/phase1/boot-phase1.img"
+	if [[ ! -f "$init_img" || ! -f "$boot_img" ]]; then
+		log "CI cuttlefish: phase1 artifacts missing; run just build-phase1 first."
+		return 1
+	fi
+	CUTTLEFISH_INSTANCE_OVERRIDE="$(cuttlefish_ci_instance)" \
+	 CUTTLEFISH_REMOTE_HOST="${CI_CUTTLEFISH_REMOTE_HOST:-localhost}" \
+	 ./scripts/cuttlefish_instance.sh deploy --init "$init_img" --boot "$boot_img"
+}
+
+restart_cuttlefish_ci() {
+	CUTTLEFISH_INSTANCE_OVERRIDE="$(cuttlefish_ci_instance)" \
+	 CUTTLEFISH_REMOTE_HOST="${CI_CUTTLEFISH_REMOTE_HOST:-localhost}" \
+	 ./scripts/cuttlefish_instance.sh restart
+}
+
+collect_cuttlefish_logs() {
+	local dest_root="${CI_ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
+	local dest="${dest_root}/cuttlefish"
+	mkdir -p "$dest"
+	CUTTLEFISH_INSTANCE_OVERRIDE="$(cuttlefish_ci_instance)" \
+	 CUTTLEFISH_REMOTE_HOST="${CI_CUTTLEFISH_REMOTE_HOST:-localhost}" \
+	 ./scripts/cuttlefish_instance.sh console-log >"${dest}/console.log" 2>/dev/null || true
+	CUTTLEFISH_INSTANCE_OVERRIDE="$(cuttlefish_ci_instance)" \
+	 CUTTLEFISH_REMOTE_HOST="${CI_CUTTLEFISH_REMOTE_HOST:-localhost}" \
+	 ./scripts/cuttlefish_instance.sh logs >"${dest}/journal.log" 2>/dev/null || true
+}
+
+run_cuttlefish_ci() {
+	log "CI cuttlefish job enabled; deploying phase1 artifacts..."
+	local serial="${CI_CUTTLEFISH_SERIAL:-127.0.0.1:6520}"
+	local instance="$(cuttlefish_ci_instance)"
+	local remote_host="${CI_CUTTLEFISH_REMOTE_HOST:-localhost}"
+	CUTTLEFISH_INSTANCE_OVERRIDE="$instance" CUTTLEFISH_REMOTE_HOST="$remote_host" \
+	 ./scripts/cuttlefish_instance.sh set-env --clear >/dev/null 2>&1 || true
+	CUTTLEFISH_INSTANCE_OVERRIDE="$instance" CUTTLEFISH_REMOTE_HOST="$remote_host" \
+	 ./scripts/cuttlefish_instance.sh start >/dev/null 2>&1 || true
+	sleep 10
+	log "CI cuttlefish: building phase1 artifacts from running instance..."
+	if ! ANDROID_SERIAL="$serial" ./scripts/build_phase1.sh; then
+		log "CI cuttlefish: build_phase1 failed."
+		return 1
+	fi
+	if ! deploy_phase1_cuttlefish; then
+		return 1
+	fi
+	restart_cuttlefish_ci
+	sleep 20
+	collect_cuttlefish_logs
+	local dest_root="${CI_ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
+	local dest="${dest_root}/cuttlefish/console.log"
+	if [[ -f "$dest" ]] && grep -qi "minios heartbeat" "$dest"; then
+		log "CI cuttlefish: heartbeat detected in console log."
+	else
+		log "CI cuttlefish: heartbeat missing from console log." >&2
+		return 1
+	fi
+	log "CI cuttlefish: instance restarted and logs collected."
+}
+
 log "Running CI checks..."
 run_rust_checks
 
@@ -231,6 +301,12 @@ if capsule_job_enabled; then
 	run_capsule_ci
 else
 	log "CI capsule job disabled (set CI_ENABLE_CAPSULE=1 to enable)."
+fi
+
+if [[ "${CI_ENABLE_CUTTLEFISH:-0}" == "1" ]]; then
+	run_cuttlefish_ci
+else
+	log "CI cuttlefish job disabled (set CI_ENABLE_CUTTLEFISH=1 to enable)."
 fi
 
 log "CI completed successfully."

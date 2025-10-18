@@ -1,10 +1,10 @@
 #![warn(clippy::all, clippy::pedantic)]
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
+use drm::Device as BasicDevice;
 use drm::buffer::DrmFourcc;
 use drm::control::dumbbuffer::DumbBuffer;
-use drm::control::{connector, Device as ControlDevice};
-use drm::Device as BasicDevice;
+use drm::control::{Device as ControlDevice, connector};
 use log::{debug, info, warn};
 use std::fs::OpenOptions;
 use std::os::unix::io::{AsFd, BorrowedFd};
@@ -62,8 +62,7 @@ pub fn fill_display(color: (u8, u8, u8)) -> Result<()> {
         .context("failed to create framebuffer")?;
     info!("created framebuffer {fb_handle:?}");
 
-    fill_buffer_with_color(&mut card, &mut dumb, color)
-        .context("failed to fill dumb buffer")?;
+    fill_buffer_with_color(&mut card, &mut dumb, color).context("failed to fill dumb buffer")?;
 
     info!("setting CRTC {crtc_handle:?} to FB {fb_handle:?}");
     card.set_crtc(

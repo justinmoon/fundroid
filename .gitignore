@@ -4,6 +4,7 @@
 .avd-name
 .emulator-serial
 .emulator-pid
+.cuttlefish-instance
 
 # Rust build artifacts
 **/target/

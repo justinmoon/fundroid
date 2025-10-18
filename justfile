@@ -222,6 +222,55 @@ emu-status:
 emu-list:
 	./scripts/list_branch_emulators.sh
 
+cuttlefish-instance:
+	./scripts/cuttlefish_instance.sh instance-name
+
+cuttlefish-set-init init_boot:
+	./scripts/cuttlefish_instance.sh set-env --init-boot {{init_boot}}
+
+cuttlefish-set-env boot="" init_boot="":
+	@if [ -n "{{boot}}" ]; then \
+		cmd_boot="--boot {{boot}}"; \
+	else \
+		cmd_boot=""; \
+	fi; \
+	if [ -n "{{init_boot}}" ]; then \
+		cmd_init="--init-boot {{init_boot}}"; \
+	else \
+		cmd_init=""; \
+	fi; \
+	if [ -z "$cmd_boot$cmd_init" ]; then \
+		./scripts/cuttlefish_instance.sh set-env --clear; \
+	else \
+		./scripts/cuttlefish_instance.sh set-env $cmd_boot $cmd_init; \
+	fi
+
+cuttlefish-restart:
+	./scripts/cuttlefish_instance.sh restart
+
+cuttlefish-start:
+	./scripts/cuttlefish_instance.sh start
+
+cuttlefish-stop:
+	./scripts/cuttlefish_instance.sh stop
+
+cuttlefish-status:
+	./scripts/cuttlefish_instance.sh status
+
+cuttlefish-logs follow="":
+	@if [ -n "{{follow}}" ]; then \
+		./scripts/cuttlefish_instance.sh logs --follow; \
+	else \
+		./scripts/cuttlefish_instance.sh logs; \
+	fi
+
+cuttlefish-console follow="":
+	@if [ -n "{{follow}}" ]; then \
+		./scripts/cuttlefish_instance.sh console-log --follow; \
+	else \
+		./scripts/cuttlefish_instance.sh console-log; \
+	fi
+
 capsule-shell:
 	@serial="${ANDROID_SERIAL:-$(cat .emulator-serial 2>/dev/null || true)}"; \
 	if [ -n "$serial" ]; then \

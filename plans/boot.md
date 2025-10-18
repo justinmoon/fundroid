@@ -5,7 +5,7 @@ Goal: boot a lightweight initramfs that paints the screen, first on the emulator
 ### Progress (Oct 18, 2025)
 - Automated `scripts/build_phase1.sh` to detect device arch, rebuild `minios_init`, bundle runtime deps, and produce signed `boot/init_boot` artifacts ready for Cuttlefish+hardware.
 - `minios_init` now force-creates `/dev/{console,null,tty,kmsg,urandom}`, emits short heartbeat logs, writes a phase marker under `/metadata`, and attempts a direct `SYS_reboot`.
-- Signed `init_boot-phase1.img` is deployed to Hetzner (`~/phase1_init_boot.img`) and boots the stock cuttlefish stack, though our logging markers are still missing in the host logs.
+- Signed `init_boot-phase1.img` can be shipped with `just cuttlefish-deploy-phase1`, which uploads to a per-instance workspace (`~/cuttlefish-instances/<instance>/`) and wires the service env automatically. The Cuttlefish stack boots it, though our logging markers are still missing in the host logs.
 - Remaining gaps: confirm our markers reach an observable sink (console/kmsg), understand why the hard reboot is a no-op, and wire up a per-worktree Cuttlefish workflow so multiple agents can iterate safely.
 
 ## Phase A – Emulator Bring-up
@@ -35,7 +35,7 @@ Goal: boot a lightweight initramfs that paints the screen, first on the emulator
    - Verify stock Android boots and USB debugging is enabled.
 
 7. **Flash signed demo**
-   - Flash the newly signed `init_boot-phase1.img` (and accompanying vbmeta chain if needed).
+   - Use `just cuttlefish-deploy-phase1` (or manually copy) to ship the freshly signed images per instance, then flash the Pixel with `fastboot flash init_boot ...` (include vbmeta chain if needed).
    - Boot the phone; read `/dev/kmsg`/`pstore` for markers to confirm the wrapper runs.
     - If kmsg is locked down, fall back to `/dev/console`, `logcat`, or a persistent scratch file under `/metadata`.
 
@@ -49,5 +49,6 @@ Goal: boot a lightweight initramfs that paints the screen, first on the emulator
    - assign a deterministic instance name per worktree (e.g. `cvd-{worktree}`),
    - store per-instance `CUTTLEFISH_*` overrides in `/etc/cuttlefish/instances/<name>.env`,
    - provide local helpers (`scripts/cuttlefish_instance.sh`, `just cuttlefish-*`) to set images, (re)start, and tail logs without clobbering other agents.
-   - add a weekly GC timer on the Hetzner host to remove stale instances/assemblies/env files.
-3. **Re-verify Phase 1 loop** – once the above lands, reboot the host service, confirm heartbeats in the console log, and iterate on the forced reboot behaviour.
+   - add a weekly GC timer on the Hetzner host to remove stale instances/assemblies/env files. ✅
+3. **CI integration** – teach `just ci` to exercise `cuttlefish@<instance>` using the new deployment helpers so Hetzner-based jobs stay isolated.
+4. **Re-verify Phase 1 loop** – once the above lands, reboot the host service, confirm heartbeats in the console log, and iterate on the forced reboot behaviour.

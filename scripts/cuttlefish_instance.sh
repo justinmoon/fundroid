@@ -6,6 +6,7 @@
 set -euo pipefail
 
 REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-hetzner}"
+REMOTE_HOME_CACHE=""
 
 die() {
   echo "cuttlefish_instance: $*" >&2
@@ -52,6 +53,35 @@ instance_name() {
   sanitize_instance "$id"
 }
 
+remote_shell() {
+  local script="$1"
+  ssh "$REMOTE_HOST" "bash -lc $(printf '%q' "$script")"
+}
+
+remote_home() {
+  if [[ -z "${REMOTE_HOME_CACHE:-}" ]]; then
+    REMOTE_HOME_CACHE="$(remote_shell 'printf %s "$HOME"')"
+  fi
+  printf '%s' "$REMOTE_HOME_CACHE"
+}
+
+remote_instance_root() {
+  local base="${CUTTLEFISH_REMOTE_BASE:-}"
+  if [[ -n "$base" ]]; then
+    if [[ "$base" == /* ]]; then
+      printf '%s' "$base"
+    else
+      printf '%s/%s' "$(remote_home)" "$base"
+    fi
+  else
+    printf '%s/cuttlefish-instances' "$(remote_home)"
+  fi
+}
+
+remote_instance_dir() {
+  printf '%s/%s' "$(remote_instance_root)" "$INSTANCE"
+}
+
 record_instance() {
   local inst="$1"
   local root
@@ -93,6 +123,21 @@ write_env_file() {
   rm -f "$tmp"
 }
 
+current_env_value() {
+  local key="$1"
+  local env_path="/etc/cuttlefish/instances/${INSTANCE}.env"
+  local env_escaped
+  env_escaped="$(printf '%q' "$env_path")"
+  local script="
+set -euo pipefail
+if [ -f ${env_escaped} ]; then
+  . ${env_escaped}
+fi
+printf '%s' \"\${${key}:-}\"
+"
+  remote_shell "$script"
+}
+
 show_usage() {
   cat <<'EOF'
 Usage: scripts/cuttlefish_instance.sh <command> [options]
@@ -107,10 +152,15 @@ Commands:
   logs [--follow]              Tail journal logs for the instance.
   console-log [--follow]       Tail the guest console log for the instance.
   env                          Print the current environment file (if any).
+  deploy [--init PATH] [--boot PATH]
+                               Copy local images to the per-instance workspace
+                               on the remote host and update the environment.
 
 Environment:
   CUTTLEFISH_INSTANCE_OVERRIDE  Override the computed instance name.
   CUTTLEFISH_REMOTE_HOST        SSH host alias (default: hetzner).
+  CUTTLEFISH_REMOTE_BASE        Remote directory for artifacts (default:
+                                ~/cuttlefish-instances).
 EOF
 }
 
@@ -180,6 +230,60 @@ case "$COMMAND" in
     remote_raw sudo cat "/etc/cuttlefish/instances/${INSTANCE}.env" 2>/dev/null || {
       echo "(no env file for ${INSTANCE})"
     }
+    ;;
+  deploy)
+    local init_path=""
+    local boot_path=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --init)
+          init_path="${2:?missing value for --init}"
+          shift 2
+          ;;
+        --boot)
+          boot_path="${2:?missing value for --boot}"
+          shift 2
+          ;;
+        *)
+          die "unknown flag for deploy: $1"
+          ;;
+      esac
+    done
+    if [[ -z "$init_path" && -z "$boot_path" ]]; then
+      die "deploy requires --init and/or --boot"
+    fi
+    local remote_dir
+    remote_dir="$(remote_instance_dir)"
+    remote_shell "set -eu; mkdir -p $(printf '%q' "$remote_dir")"
+    local init_remote=""
+    local boot_remote=""
+    if [[ -n "$init_path" ]]; then
+      [[ -f "$init_path" ]] || die "init image not found: $init_path"
+      init_remote="${remote_dir}/init_boot.img"
+      scp -q "$init_path" "${REMOTE_HOST}:${init_remote}"
+    fi
+    if [[ -n "$boot_path" ]]; then
+      [[ -f "$boot_path" ]] || die "boot image not found: $boot_path"
+      boot_remote="${remote_dir}/boot.img"
+      scp -q "$boot_path" "${REMOTE_HOST}:${boot_remote}"
+    fi
+    local current_boot current_init
+    current_boot="$(current_env_value CUTTLEFISH_BOOT_IMAGE)"
+    current_init="$(current_env_value CUTTLEFISH_INIT_BOOT_IMAGE)"
+    if [[ -z "$boot_remote" ]]; then
+      boot_remote="$current_boot"
+    fi
+    if [[ -z "$init_remote" ]]; then
+      init_remote="$current_init"
+    fi
+    write_env_file "$INSTANCE" "$boot_remote" "$init_remote"
+    echo "Synced artifacts to ${remote_dir}"
+    if [[ -n "$boot_remote" ]]; then
+      echo "  CUTTLEFISH_BOOT_IMAGE=${boot_remote}"
+    fi
+    if [[ -n "$init_remote" ]]; then
+      echo "  CUTTLEFISH_INIT_BOOT_IMAGE=${init_remote}"
+    fi
     ;;
   *)
     show_usage

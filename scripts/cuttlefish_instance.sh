@@ -45,30 +45,28 @@ worktree_basename() {
   fi
 }
 
-sanitize_instance() {
+cuttlefish_instance_name() {
   local raw="$1"
-  raw="${raw,,}"
-  raw="${raw//[^a-z0-9-]/-}"
-  raw="${raw#-}"
-  raw="${raw%-}"
-  [[ -z "$raw" ]] && raw="main"
-  local inst="cvd-${raw}"
-  if ((${#inst} > 40)); then
-    local short
-    short="$(git rev-parse --short=8 HEAD 2>/dev/null || date +%s)"
-    inst="cvd-${raw:0:24}-${short}"
+  if [[ -n "$raw" ]]; then
+    printf '%s' "$raw"
+    return
   fi
-  echo "$inst"
+  local name
+  name="$(worktree_basename)"
+  [[ -z "$name" ]] && name="main"
+  name="${name,,}"
+  name="${name//[^a-z0-9-]/-}"
+  name="${name#-}"
+  name="${name%-}"
+  [[ -z "$name" ]] && name="main"
+  local checksum
+  checksum="$(printf '%s' "$name" | cksum | awk '{print $1}')"
+  printf 'cvd-%s' "${checksum:-0}"
 }
 
 instance_name() {
-  if [[ -n "${CUTTLEFISH_INSTANCE_OVERRIDE:-}" ]]; then
-    echo "${CUTTLEFISH_INSTANCE_OVERRIDE}"
-    return
-  fi
-  local id
-  id="$(worktree_basename)"
-  sanitize_instance "$id"
+  CUTTLEFISH_INSTANCE_EFFECTIVE="$(cuttlefish_instance_name "${CUTTLEFISH_INSTANCE_OVERRIDE:-}")"
+  printf '%s\n' "$CUTTLEFISH_INSTANCE_EFFECTIVE"
 }
 
 remote_shell() {
@@ -256,7 +254,11 @@ case "$COMMAND" in
     echo "Updated /etc/cuttlefish/instances/${INSTANCE}.env on ${REMOTE_HOST}"
     ;;
   start|stop|restart)
-    remote_sudo "systemctl $COMMAND cuttlefish@${INSTANCE}"
+    if [[ "$COMMAND" == "start" || "$COMMAND" == "restart" ]]; then
+      remote_sudo "systemctl --no-block $COMMAND cuttlefish@${INSTANCE}"
+    else
+      remote_sudo "systemctl $COMMAND cuttlefish@${INSTANCE}"
+    fi
     ;;
   status)
     remote_sudo "systemctl status cuttlefish@${INSTANCE}"

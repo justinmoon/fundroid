@@ -56,16 +56,16 @@ run_release_builds() {
 }
 
 cuttlefish_cmd() {
-  local instance="${CI_CUTTLEFISH_INSTANCE:-ci-cuttlefish}"
-  local remote_host="${CI_CUTTLEFISH_REMOTE_HOST:-hetzner}"
+  local instance="ci-cuttlefish"
+  local remote_host="hetzner"
   CUTTLEFISH_INSTANCE_OVERRIDE="$instance" \
   CUTTLEFISH_REMOTE_HOST="$remote_host" \
     ./scripts/cuttlefish_instance.sh "$@"
 }
 
 run_cuttlefish_smoke() {
-  local serial="${CI_CUTTLEFISH_SERIAL:-127.0.0.1:6520}"
-  local wait_secs="${CI_CUTTLEFISH_WAIT:-30}"
+  local serial="127.0.0.1:6520"
+  local wait_secs="30"
   local init_img="target/os/phase1/init_boot-phase1.img"
   local boot_img="target/os/phase1/boot-phase1.img"
 

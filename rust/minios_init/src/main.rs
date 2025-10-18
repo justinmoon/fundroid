@@ -172,7 +172,7 @@ fn force_reboot() {
             SYS_reboot,
             MAGIC1,
             MAGIC2,
-            LINUX_REBOOT_CMD_RESTART as libc::c_long,
+            libc::c_long::from(LINUX_REBOOT_CMD_RESTART),
             0,
         );
         if res != 0 {

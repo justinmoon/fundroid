@@ -9,6 +9,7 @@ CI_CRATES=(
   "rust/minios_init"
 )
 CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
+DEFAULT_ADB_PORTS=("6520" "16520")
 
 log() {
   printf '[ci] %s\n' "$*"
@@ -55,6 +56,31 @@ run_release_builds() {
   done
 }
 
+detect_adb_serial() {
+  local port_list
+  if [[ -n "${CUTTLEFISH_ADB_PORTS:-}" ]]; then
+    read -r -a port_list <<<"${CUTTLEFISH_ADB_PORTS}"
+  else
+    port_list=("${DEFAULT_ADB_PORTS[@]}")
+  fi
+
+  for port in "${port_list[@]}"; do
+    local serial="127.0.0.1:${port}"
+    adb disconnect "$serial" >/dev/null 2>&1 || true
+    adb connect "$serial" >/dev/null 2>&1 || true
+    for attempt in {1..10}; do
+      local state
+      state="$(adb -s "$serial" get-state 2>/dev/null || true)"
+      if [[ "$state" == "device" ]]; then
+        echo "$serial"
+        return 0
+      fi
+      sleep 1
+    done
+  done
+  return 1
+}
+
 cuttlefish_cmd() {
   local instance="ci-cuttlefish"
   local remote_host="hetzner"
@@ -64,7 +90,6 @@ cuttlefish_cmd() {
 }
 
 run_cuttlefish_smoke() {
-  local serial="127.0.0.1:6520"
   local wait_secs="30"
   local init_img="target/os/phase1/init_boot-phase1.img"
   local boot_img="target/os/phase1/boot-phase1.img"
@@ -74,6 +99,14 @@ run_cuttlefish_smoke() {
   cuttlefish_cmd set-env --clear >/dev/null 2>&1 || true
   cuttlefish_cmd start >/dev/null 2>&1
   sleep 10
+
+  local serial
+  if ! serial="$(detect_adb_serial)"; then
+    log "Cuttlefish smoke FAILED (could not connect to adb)."
+    return 1
+  fi
+
+  log "Using adb serial $serial"
 
   log "Building Phase 1 artifacts from running instance..."
   ANDROID_SERIAL="$serial" ./scripts/build_phase1.sh
@@ -101,9 +134,11 @@ run_cuttlefish_smoke() {
     log "Cuttlefish smoke FAILED (missing heartbeat)."
     log "Captured console log:";
     tail -n 200 "$console_tmp" >&2
+    adb disconnect "$serial" >/dev/null 2>&1 || true
     return 1
   fi
 
+  adb disconnect "$serial" >/dev/null 2>&1 || true
   log "Cuttlefish smoke passed (heartbeat detected)."
   return 0
 }

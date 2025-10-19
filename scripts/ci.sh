@@ -9,19 +9,77 @@ CI_CRATES=(
   "rust/minios_init"
 )
 CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
-ADB_TUNNEL_CONTROLS=()
+
+CFCTL_REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-}" # empty means run locally
+CFCTL_INSTANCE_ID=""
+SKIP_STOCK_SMOKE=0
+
+if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
+  CFCTL_BIN="${CFCTL_BIN:-}"
+  if [[ -z "$CFCTL_BIN" ]]; then
+    declare -a candidates=()
+    if command -v cfctl >/dev/null 2>&1; then
+      candidates+=("$(command -v cfctl)")
+    fi
+    candidates+=(
+      "/run/current-system/sw/bin/cfctl"
+      "$HOME/.nix-profile/bin/cfctl"
+      "/usr/bin/cfctl"
+    )
+    for candidate in "${candidates[@]}"; do
+      if [[ -n "$candidate" && -x "$candidate" ]]; then
+        CFCTL_BIN="$candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$CFCTL_BIN" ]]; then
+    if [[ "${CI_SKIP_STOCK_SMOKE:-}" == "1" ]]; then
+      SKIP_STOCK_SMOKE=1
+      echo "[ci] cfctl not found locally; stock smoke test will be skipped." >&2
+    else
+      echo "[ci] cfctl binary not found (set CFCTL_BIN or CI_SKIP_STOCK_SMOKE=1)" >&2
+      exit 1
+    fi
+  fi
+fi
+
+log() {
+  printf '[ci] %s\n' "$*"
+}
 
 cleanup() {
-  for control in "${ADB_TUNNEL_CONTROLS[@]}"; do
-    ssh -S "$control" -O exit hetzner >/dev/null 2>&1 || true
-    rm -f "$control"
-  done
+  if [[ -n "${CFCTL_INSTANCE_ID:-}" ]]; then
+    remote_cfctl instance destroy "$CFCTL_INSTANCE_ID" >/dev/null 2>&1 || true
+  fi
 }
 
 trap cleanup EXIT
 
-log() {
-  printf '[ci] %s\n' "$*"
+remote_cfctl() {
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" cfctl "$@"
+  else
+    "$CFCTL_BIN" "$@"
+  fi
+}
+
+copy_to_local() {
+  local src="$1" dest="$2"
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" cat "$src" >"$dest" || true
+  else
+    cat "$src" >"$dest" || true
+  fi
+}
+
+file_exists() {
+  local path="$1"
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" test -f "$path"
+  else
+    test -f "$path"
+  fi
 }
 
 targets_for() {
@@ -65,106 +123,106 @@ run_release_builds() {
   done
 }
 
-allocate_local_port() {
-  python3 - <<'PY'
-import socket
-s = socket.socket()
-s.bind(("127.0.0.1", 0))
-port = s.getsockname()[1]
-s.close()
-print(port)
+extract_json_field() {
+  local json="$1" expression="$2"
+  python3 - <<'PY' "$json" "$expression"
+import json
+import sys
+
+data = json.loads(sys.argv[1] or "null")
+expression = sys.argv[2]
+value = data
+for part in expression.split('.'):
+    if not part:
+        continue
+    if isinstance(value, dict):
+        value = value.get(part)
+    else:
+        try:
+            idx = int(part)
+            value = value[idx]
+        except (ValueError, TypeError, IndexError):
+            value = None
+    if value is None:
+        break
+
+if isinstance(value, (dict, list)):
+    print(json.dumps(value))
+elif value is None:
+    print("")
+else:
+    print(value)
 PY
 }
 
-open_adb_tunnel() {
-  local port control
-  port="$(allocate_local_port)" || return 1
-  control="$(mktemp /tmp/cuttlefish-ci-ssh-XXXXXX.sock)"
-  if ! ssh -f -N -M -S "$control" -L "${port}:127.0.0.1:6520" hetzner >/dev/null 2>&1; then
-    rm -f "$control"
-    return 1
-  fi
-  ADB_TUNNEL_CONTROLS+=("$control")
-  echo "127.0.0.1:${port}"
-}
+fetch_cfctl_logs() {
+  local id="$1"
+  local logs_json
+  logs_json="$(remote_cfctl logs "$id" --lines 400 2>/dev/null || true)"
+  [[ -z "$logs_json" ]] && return
 
-detect_adb_serial() {
-  local serial
-  serial="$(open_adb_tunnel)" || return 1
-
-  adb disconnect "$serial" >/dev/null 2>&1 || true
-  for attempt in {1..60}; do
-    adb connect "$serial" >/dev/null 2>&1 || true
-    local state
-    state="$(adb -s "$serial" get-state 2>/dev/null || true)"
-    if [[ "$state" == "device" ]]; then
-      echo "$serial"
-      return 0
-    fi
-    sleep 2
-  done
-  return 1
-}
-
-cuttlefish_cmd() {
-  local instance="ci-cuttlefish"
-  local remote_host="hetzner"
-  CUTTLEFISH_INSTANCE_OVERRIDE="$instance" \
-  CUTTLEFISH_REMOTE_HOST="$remote_host" \
-    ./scripts/cuttlefish_instance.sh "$@"
-}
-
-run_cuttlefish_smoke() {
-  local wait_secs="30"
-  local init_img="target/os/phase1/init_boot-phase1.img"
-  local boot_img="target/os/phase1/boot-phase1.img"
-
-  log "Preparing Cuttlefish instance for smoke test..."
-  cuttlefish_cmd stop >/dev/null 2>&1 || true
-  cuttlefish_cmd set-env --clear >/dev/null 2>&1 || true
-  cuttlefish_cmd start >/dev/null 2>&1
-  sleep 10
-
-  local serial
-  if ! serial="$(detect_adb_serial)"; then
-    log "Cuttlefish smoke FAILED (could not connect to adb)."
-    return 1
-  fi
-
-  log "Using adb serial $serial"
-
-  log "Building Phase 1 artifacts from running instance..."
-  ANDROID_SERIAL="$serial" ./scripts/build_phase1.sh
-
-  log "Deploying Phase 1 artifacts to cuttlefish instance..."
-  cuttlefish_cmd deploy --init "$init_img" --boot "$boot_img"
-  cuttlefish_cmd restart
-
-  log "Waiting ${wait_secs}s for guest to boot..."
-  sleep "$wait_secs"
-
-  local console_tmp journal_tmp
-  console_tmp="$(mktemp)"
-  journal_tmp="$(mktemp)"
-  cuttlefish_cmd console-log >"$console_tmp" 2>/dev/null || true
-  cuttlefish_cmd logs >"$journal_tmp" 2>/dev/null || true
+  local journal console_path
+  journal="$(extract_json_field "$logs_json" "logs.journal")"
+  console_path="$(extract_json_field "$logs_json" "logs.console_log_path")"
 
   if [[ -n "${CI_ARTIFACTS_DIR:-}" ]]; then
     mkdir -p "${CI_ARTIFACTS_DIR}/cuttlefish"
-    cp "$console_tmp" "${CI_ARTIFACTS_DIR}/cuttlefish/console.log"
-    cp "$journal_tmp" "${CI_ARTIFACTS_DIR}/cuttlefish/journal.log"
+    [[ -n "$journal" ]] && printf '%s\n' "$journal" > "${CI_ARTIFACTS_DIR}/cuttlefish/journal.log"
+    if [[ -n "$console_path" ]] && file_exists "$console_path"; then
+      local tmp_console
+      tmp_console="$(mktemp)"
+      copy_to_local "$console_path" "$tmp_console"
+      cp "$tmp_console" "${CI_ARTIFACTS_DIR}/cuttlefish/console.log"
+      rm -f "$tmp_console"
+    fi
   fi
+}
 
-  if ! grep -qi "minios heartbeat" "$console_tmp"; then
-    log "Cuttlefish smoke FAILED (missing heartbeat)."
-    log "Captured console log:";
-    tail -n 200 "$console_tmp" >&2
-    adb disconnect "$serial" >/dev/null 2>&1 || true
+run_cuttlefish_stock_smoke() {
+  log "Requesting new cuttlefish instance via cfctl (stock images)..."
+  local create_json
+  if ! create_json="$(remote_cfctl instance create)"; then
+    log "Cuttlefish stock smoke FAILED (instance create)"
     return 1
   fi
 
-  adb disconnect "$serial" >/dev/null 2>&1 || true
-  log "Cuttlefish smoke passed (heartbeat detected)."
+  CFCTL_INSTANCE_ID="$(extract_json_field "$create_json" "create.summary.id")"
+  local adb_port
+  adb_port="$(extract_json_field "$create_json" "create.summary.adb.port")"
+  if [[ -z "$CFCTL_INSTANCE_ID" || -z "$adb_port" ]]; then
+    log "Cuttlefish stock smoke FAILED (invalid create response)"
+    return 1
+  fi
+
+  log "Starting cuttlefish @ ${CFCTL_INSTANCE_ID}..."
+  if ! remote_cfctl instance start "$CFCTL_INSTANCE_ID"; then
+    log "Cuttlefish stock smoke FAILED (start)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
+
+  log "Waiting for adb on port ${adb_port}..."
+  if ! remote_cfctl wait-adb "$CFCTL_INSTANCE_ID" --timeout-secs 180; then
+    log "Cuttlefish stock smoke FAILED (wait-adb)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
+
+  log "Inspecting journal for boot completion..."
+  local logs_json journal
+  logs_json="$(remote_cfctl logs "$CFCTL_INSTANCE_ID" --lines 400 || true)"
+  journal="$(extract_json_field "$logs_json" "logs.journal")"
+  if [[ "$journal" != *"VIRTUAL_DEVICE_BOOT_COMPLETED"* ]]; then
+    log "Cuttlefish stock smoke FAILED (missing boot completion marker)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
+
+  fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+
+  log "Cuttlefish stock smoke passed."
+  remote_cfctl instance destroy "$CFCTL_INSTANCE_ID" >/dev/null 2>&1 || true
+  CFCTL_INSTANCE_ID=""
   return 0
 }
 
@@ -173,7 +231,11 @@ main() {
   run_clippy
   run_check
   run_release_builds
-  run_cuttlefish_smoke
+  if (( SKIP_STOCK_SMOKE )); then
+    log "Skipping stock cuttlefish smoke test."
+  else
+    run_cuttlefish_stock_smoke
+  fi
   log "CI completed successfully."
 }
 

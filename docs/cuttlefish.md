@@ -32,3 +32,9 @@ cfctl instance destroy 61
 ## Notes
 - `~/configs/hetzner/cfctl` now contains the daemon and packaging; this repo no longer builds cfctl itself.
 - When iterating on custom init images, use `scripts/build_phase1.sh` to produce artifacts locally, then `cfctl deploy --init <path>` to override the stock `init_boot.img`. Stock runs require none of that machinery.
+
+## Handy Commands
+- `cfctl instance create/start/wait-adb/destroy` — quick stock boot check on the Hetzner host.
+- `CUTTLEFISH_REMOTE_HOST=hetzner ./scripts/cuttlefish_instance.sh status` — inspect the shared instance state.
+- `just ci` — runs the formatting/linting suite and the stock Cuttlefish smoke test described above.
+- Locally, if `cfctl` is not installed you can skip the smoke test with `CI_SKIP_STOCK_SMOKE=1 just ci`.

@@ -123,6 +123,7 @@
                 pkgs.cmake
                 pkgs.ninja
                 pkgs.pkg-config
+                pkgs.openssh
                 pkgs.gcc
                 pkgs.jdk17_headless
                 pkgs.unzip

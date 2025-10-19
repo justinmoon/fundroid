@@ -9,7 +9,16 @@ CI_CRATES=(
   "rust/minios_init"
 )
 CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
-DEFAULT_ADB_PORTS=("6520" "16520")
+ADB_TUNNEL_CONTROLS=()
+
+cleanup() {
+  for control in "${ADB_TUNNEL_CONTROLS[@]}"; do
+    ssh -S "$control" -O exit hetzner >/dev/null 2>&1 || true
+    rm -f "$control"
+  done
+}
+
+trap cleanup EXIT
 
 log() {
   printf '[ci] %s\n' "$*"
@@ -56,27 +65,43 @@ run_release_builds() {
   done
 }
 
-detect_adb_serial() {
-  local port_list
-  if [[ -n "${CUTTLEFISH_ADB_PORTS:-}" ]]; then
-    read -r -a port_list <<<"${CUTTLEFISH_ADB_PORTS}"
-  else
-    port_list=("${DEFAULT_ADB_PORTS[@]}")
-  fi
+allocate_local_port() {
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+port = s.getsockname()[1]
+s.close()
+print(port)
+PY
+}
 
-  for port in "${port_list[@]}"; do
-    local serial="127.0.0.1:${port}"
-    adb disconnect "$serial" >/dev/null 2>&1 || true
+open_adb_tunnel() {
+  local port control
+  port="$(allocate_local_port)" || return 1
+  control="$(mktemp /tmp/cuttlefish-ci-ssh-XXXXXX.sock)"
+  if ! ssh -f -N -M -S "$control" -L "${port}:127.0.0.1:6520" hetzner >/dev/null 2>&1; then
+    rm -f "$control"
+    return 1
+  fi
+  ADB_TUNNEL_CONTROLS+=("$control")
+  echo "127.0.0.1:${port}"
+}
+
+detect_adb_serial() {
+  local serial
+  serial="$(open_adb_tunnel)" || return 1
+
+  adb disconnect "$serial" >/dev/null 2>&1 || true
+  for attempt in {1..60}; do
     adb connect "$serial" >/dev/null 2>&1 || true
-    for attempt in {1..10}; do
-      local state
-      state="$(adb -s "$serial" get-state 2>/dev/null || true)"
-      if [[ "$state" == "device" ]]; then
-        echo "$serial"
-        return 0
-      fi
-      sleep 1
-    done
+    local state
+    state="$(adb -s "$serial" get-state 2>/dev/null || true)"
+    if [[ "$state" == "device" ]]; then
+      echo "$serial"
+      return 0
+    fi
+    sleep 2
   done
   return 1
 }

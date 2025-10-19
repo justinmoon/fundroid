@@ -22,6 +22,7 @@ if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
       "/run/current-system/sw/bin/cfctl"
       "$HOME/.nix-profile/bin/cfctl"
       "/usr/bin/cfctl"
+      "$HOME/configs/hetzner/cfctl/target/release/cfctl"
     )
     for candidate in "${candidates[@]}"; do
       if [[ -n "$candidate" && -x "$candidate" ]]; then
@@ -35,7 +36,7 @@ if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
       SKIP_STOCK_SMOKE=1
       echo "[ci] cfctl not found locally; stock smoke test will be skipped." >&2
     else
-      echo "[ci] cfctl binary not found (set CFCTL_BIN or CI_SKIP_STOCK_SMOKE=1)" >&2
+      echo "[ci] cfctl binary not found (set CFCTL_BIN, CUTTLEFISH_REMOTE_HOST, or CI_SKIP_STOCK_SMOKE=1)" >&2
       exit 1
     fi
   fi

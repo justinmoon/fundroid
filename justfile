@@ -122,4 +122,16 @@ detect-arch:
 
 # CI target
 ci:
-	nix run .#ci
+	@set -euo pipefail; hostname="$(hostname -s)"; target="${CUTTLEFISH_LOCAL_HOSTNAME:-hetzner}"; \
+	if [ "$$hostname" = "$$target" ]; then \
+		nix run .#ci; \
+	else \
+		CUTTLEFISH_REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-hetzner}" nix run .#ci; \
+	fi
+
+ci-remote:
+	CUTTLEFISH_REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-hetzner}" nix run .#ci
+
+ci-local:
+	CI_SKIP_STOCK_SMOKE=1 nix run .#ci
+

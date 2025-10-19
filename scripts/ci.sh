@@ -3,10 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CI_CRATES=(
-  "rust/webosd"
-  "rust/fb_rect"
   "rust/drm_rect"
-  "rust/minios_init"
 )
 CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
 
@@ -25,6 +22,7 @@ if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
       "/run/current-system/sw/bin/cfctl"
       "$HOME/.nix-profile/bin/cfctl"
       "/usr/bin/cfctl"
+      "$HOME/configs/hetzner/cfctl/target/release/cfctl"
     )
     for candidate in "${candidates[@]}"; do
       if [[ -n "$candidate" && -x "$candidate" ]]; then
@@ -38,7 +36,7 @@ if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
       SKIP_STOCK_SMOKE=1
       echo "[ci] cfctl not found locally; stock smoke test will be skipped." >&2
     else
-      echo "[ci] cfctl binary not found (set CFCTL_BIN or CI_SKIP_STOCK_SMOKE=1)" >&2
+      echo "[ci] cfctl binary not found (set CFCTL_BIN, CUTTLEFISH_REMOTE_HOST, or CI_SKIP_STOCK_SMOKE=1)" >&2
       exit 1
     fi
   fi
@@ -83,10 +81,7 @@ file_exists() {
 }
 
 targets_for() {
-  case "$1" in
-    rust/minios_init) echo "aarch64-linux-android" ;;
-    *) echo "${CI_TARGETS[@]}" ;;
-  esac
+  echo "${CI_TARGETS[@]}"
 }
 
 run_fmt() {

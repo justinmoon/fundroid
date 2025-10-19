@@ -2,235 +2,241 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+CI_CRATES=(
+  "rust/webosd"
+  "rust/fb_rect"
+  "rust/drm_rect"
+  "rust/minios_init"
+)
+CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
 
-CAPSULE_ARTIFACT_DIR=""
-CAPSULE_WATCHDOG_PID=""
-CAPSULE_WATCHDOG_STATE_FILE=""
-CAPSULE_CLEANED_UP=0
+CFCTL_REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-}" # empty means run locally
+CFCTL_INSTANCE_ID=""
+SKIP_STOCK_SMOKE=0
+
+if [[ -z "$CFCTL_REMOTE_HOST" ]]; then
+  CFCTL_BIN="${CFCTL_BIN:-}"
+  if [[ -z "$CFCTL_BIN" ]]; then
+    declare -a candidates=()
+    if command -v cfctl >/dev/null 2>&1; then
+      candidates+=("$(command -v cfctl)")
+    fi
+    candidates+=(
+      "/run/current-system/sw/bin/cfctl"
+      "$HOME/.nix-profile/bin/cfctl"
+      "/usr/bin/cfctl"
+    )
+    for candidate in "${candidates[@]}"; do
+      if [[ -n "$candidate" && -x "$candidate" ]]; then
+        CFCTL_BIN="$candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$CFCTL_BIN" ]]; then
+    if [[ "${CI_SKIP_STOCK_SMOKE:-}" == "1" ]]; then
+      SKIP_STOCK_SMOKE=1
+      echo "[ci] cfctl not found locally; stock smoke test will be skipped." >&2
+    else
+      echo "[ci] cfctl binary not found (set CFCTL_BIN or CI_SKIP_STOCK_SMOKE=1)" >&2
+      exit 1
+    fi
+  fi
+fi
 
 log() {
-	printf '%s\n' "$*"
+  printf '[ci] %s\n' "$*"
 }
 
-run_rust_checks() {
-	log "Running clippy checks..."
-	cargo clippy --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/webosd/Cargo.toml --target aarch64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/fb_rect/Cargo.toml --target x86_64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android -- -D warnings
-	cargo clippy --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android -- -D warnings
-
-	log "Building tests..."
-	cargo test --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android --no-run
-	cargo test --manifest-path rust/webosd/Cargo.toml --target aarch64-linux-android --no-run
-	cargo test --manifest-path rust/fb_rect/Cargo.toml --target x86_64-linux-android --no-run
-	cargo test --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --no-run
-	cargo test --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --no-run
-	cargo test --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --no-run
-	cargo test --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android --no-run
-
-	log "Building release binaries..."
-	cargo build --manifest-path rust/webosd/Cargo.toml --target x86_64-linux-android --release
-	cargo build --manifest-path rust/webosd/Cargo.toml --target aarch64-linux-android --release
-	cargo build --manifest-path rust/fb_rect/Cargo.toml --target x86_64-linux-android --release
-	cargo build --manifest-path rust/fb_rect/Cargo.toml --target aarch64-linux-android --release
-	cargo build --manifest-path rust/drm_rect/Cargo.toml --target x86_64-linux-android --release
-	cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release
-	cargo build --manifest-path rust/minios_init/Cargo.toml --target aarch64-linux-android --release
+cleanup() {
+  if [[ -n "${CFCTL_INSTANCE_ID:-}" ]]; then
+    remote_cfctl instance destroy "$CFCTL_INSTANCE_ID" >/dev/null 2>&1 || true
+  fi
 }
 
-hal_smoke_enabled() {
-	case "${CI_ENABLE_HAL_SMOKE:-0}" in
-		1|true|TRUE|True) return 0 ;;
-		*) return 1 ;;
-	esac
+trap cleanup EXIT
+
+remote_cfctl() {
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" cfctl "$@"
+  else
+    "$CFCTL_BIN" "$@"
+  fi
 }
 
-capsule_hal_smoke_enabled() {
-	case "${CI_ENABLE_CAPSULE_HAL_SMOKE:-0}" in
-		1|true|TRUE|True) return 0 ;;
-		*) return 1 ;;
-	esac
+copy_to_local() {
+  local src="$1" dest="$2"
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" cat "$src" >"$dest" || true
+  else
+    cat "$src" >"$dest" || true
+  fi
 }
 
-run_hal_smoke_ci() {
-	local service="${CI_HAL_SMOKE_SERVICE:-android.hardware.vibrator.IVibrator/default}"
-	log "Running HAL smoke test against ${service}..."
-	./scripts/hal_smoke.sh "${service}"
+file_exists() {
+  local path="$1"
+  if [[ -n "$CFCTL_REMOTE_HOST" ]]; then
+    ssh "$CFCTL_REMOTE_HOST" test -f "$path"
+  else
+    test -f "$path"
+  fi
 }
 
-capsule_job_enabled() {
-	case "${CI_ENABLE_CAPSULE:-0}" in
-		1|true|TRUE|True) return 0 ;;
-		*) return 1 ;;
-	esac
+targets_for() {
+  case "$1" in
+    rust/minios_init) echo "aarch64-linux-android" ;;
+    *) echo "${CI_TARGETS[@]}" ;;
+  esac
 }
 
-capsule_ci_cleanup() {
-	if [[ "${CAPSULE_CLEANED_UP:-0}" -eq 1 ]]; then
-		return
-	fi
-	CAPSULE_CLEANED_UP=1
-	set +e
-	stop_capsule_watchdog
-	kill_emulator
-	collect_capsule_artifacts
-	set -e
+run_fmt() {
+  log "Running cargo fmt checks..."
+  for crate in "${CI_CRATES[@]}"; do
+    cargo fmt --manifest-path "${crate}/Cargo.toml" -- --check
+  done
 }
 
-start_capsule_watchdog() {
-	local state_file="$1"
-	CAPSULE_WATCHDOG_STATE_FILE="$state_file"
-	: >"$CAPSULE_WATCHDOG_STATE_FILE"
-	(
-		local deadline=$(( $(date +%s) + 90 ))
-		local serial="${ANDROID_SERIAL:-}"
-		local ready=""
-		while (( $(date +%s) < deadline )); do
-			if [[ -n "$serial" ]]; then
-				ready="$(adb -s "$serial" shell getprop sys.capsule.ready 2>/dev/null | tr -d '\r')" || ready=""
-			else
-				ready="$(adb shell getprop sys.capsule.ready 2>/dev/null | tr -d '\r')" || ready=""
-			fi
-			if [[ "$ready" == "1" ]]; then
-				echo "ready" >"$CAPSULE_WATCHDOG_STATE_FILE"
-				exit 0
-			fi
-			sleep 3
-		done
-		echo "timeout" >"$CAPSULE_WATCHDOG_STATE_FILE"
-		if [[ -n "$serial" ]]; then
-			adb -s "$serial" emu kill >/dev/null 2>&1 || true
-		else
-			adb emu kill >/dev/null 2>&1 || true
-		fi
-		exit 1
-	) &
-	CAPSULE_WATCHDOG_PID=$!
+run_clippy() {
+  log "Running cargo clippy..."
+  for crate in "${CI_CRATES[@]}"; do
+    for target in $(targets_for "$crate"); do
+      cargo clippy --manifest-path "${crate}/Cargo.toml" --target "$target" -- -D warnings
+    done
+  done
 }
 
-stop_capsule_watchdog() {
-	if [[ -n "${CAPSULE_WATCHDOG_PID:-}" ]]; then
-		if kill -0 "$CAPSULE_WATCHDOG_PID" >/dev/null 2>&1; then
-			kill "$CAPSULE_WATCHDOG_PID" >/dev/null 2>&1 || true
-		fi
-		wait "$CAPSULE_WATCHDOG_PID" >/dev/null 2>&1 || true
-		unset CAPSULE_WATCHDOG_PID
-	fi
+run_check() {
+  log "Running cargo check/tests (no-run)..."
+  for crate in "${CI_CRATES[@]}"; do
+    for target in $(targets_for "$crate"); do
+      cargo test --manifest-path "${crate}/Cargo.toml" --target "$target" --no-run
+    done
+  done
 }
 
-kill_emulator() {
-	if [[ -n "${ANDROID_SERIAL:-}" ]]; then
-		adb -s "$ANDROID_SERIAL" emu kill >/dev/null 2>&1 || true
-	else
-		adb emu kill >/dev/null 2>&1 || true
-	fi
-	rm -f "${REPO_ROOT}/.emulator-pid" >/dev/null 2>&1 || true
+run_release_builds() {
+  log "Building release artifacts..."
+  for crate in "${CI_CRATES[@]}"; do
+    for target in $(targets_for "$crate"); do
+      cargo build --manifest-path "${crate}/Cargo.toml" --target "$target" --release
+    done
+  done
 }
 
-collect_capsule_artifacts() {
-	if [[ -z "$CAPSULE_ARTIFACT_DIR" || ! -d "$CAPSULE_ARTIFACT_DIR" ]]; then
-		return
-	fi
-	local dest_root="${CI_ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
-	local dest="${dest_root}/capsule"
-	mkdir -p "$dest"
-	if [[ "$dest" == "$CAPSULE_ARTIFACT_DIR" ]]; then
-		return
-	fi
-	cp -a "${CAPSULE_ARTIFACT_DIR}/." "$dest/" >/dev/null 2>&1 || true
+extract_json_field() {
+  local json="$1" expression="$2"
+  python3 - <<'PY' "$json" "$expression"
+import json
+import sys
+
+data = json.loads(sys.argv[1] or "null")
+expression = sys.argv[2]
+value = data
+for part in expression.split('.'):
+    if not part:
+        continue
+    if isinstance(value, dict):
+        value = value.get(part)
+    else:
+        try:
+            idx = int(part)
+            value = value[idx]
+        except (ValueError, TypeError, IndexError):
+            value = None
+    if value is None:
+        break
+
+if isinstance(value, (dict, list)):
+    print(json.dumps(value))
+elif value is None:
+    print("")
+else:
+    print(value)
+PY
 }
 
-run_capsule_ci() {
-	log "CI capsule job enabled; starting headless emulator..."
-	CAPSULE_CLEANED_UP=0
-	CAPSULE_ARTIFACT_DIR="${REPO_ROOT}/artifacts/capsule"
-	mkdir -p "$CAPSULE_ARTIFACT_DIR"
-	rm -f "${CAPSULE_ARTIFACT_DIR}/watchdog-state.txt"
+fetch_cfctl_logs() {
+  local id="$1"
+  local logs_json
+  logs_json="$(remote_cfctl logs "$id" --lines 400 2>/dev/null || true)"
+  [[ -z "$logs_json" ]] && return
 
-	trap 'capsule_ci_cleanup' EXIT
+  local journal console_path
+  journal="$(extract_json_field "$logs_json" "logs.journal")"
+  console_path="$(extract_json_field "$logs_json" "logs.console_log_path")"
 
-	export EMULATOR_LOG="${CAPSULE_ARTIFACT_DIR}/emulator.log"
-	export EMULATOR_GPU="${EMULATOR_GPU:-swiftshader_indirect}"
-	export EMULATOR_FLAGS="${EMULATOR_FLAGS:-}"
-
-	if [ ! -f "${REPO_ROOT}/.avd-name" ]; then
-		log "capsule-ci: no branch AVD detected; creating one..."
-		just emu-create
-	fi
-
-	just emu-boot
-
-	local serial
-	if [[ -f "${REPO_ROOT}/.emulator-serial" ]]; then
-		serial="$(tr -d '\r\n' < "${REPO_ROOT}/.emulator-serial")"
-	fi
-	if [[ -z "$serial" ]]; then
-		log "capsule-ci: failed to detect emulator serial (expected ${REPO_ROOT}/.emulator-serial)" >&2
-		return 1
-	fi
-	export ANDROID_SERIAL="$serial"
-
-	start_capsule_watchdog "${CAPSULE_ARTIFACT_DIR}/watchdog-state.txt"
-
-	set +e
-	just capsule-hello
-	local capsule_status=$?
-	set -e
-
-	stop_capsule_watchdog
-	local watchdog_state=""
-	if [[ -n "$CAPSULE_WATCHDOG_STATE_FILE" && -f "$CAPSULE_WATCHDOG_STATE_FILE" ]]; then
-		watchdog_state="$(<"$CAPSULE_WATCHDOG_STATE_FILE")"
-	fi
-
-	local capsule_hal_status=0
-	if capsule_hal_smoke_enabled; then
-		log "capsule-ci: running capsule HAL smoke..."
-		set +e
-		just capsule-hal-smoke
-		capsule_hal_status=$?
-		set -e
-	fi
-
-	kill_emulator
-	collect_capsule_artifacts
-
-	trap - EXIT
-	capsule_ci_cleanup
-
-	if [[ "$watchdog_state" == "timeout" ]]; then
-		log "capsule-ci: readiness watchdog triggered (capsule did not report ready within 90s)." >&2
-		return 1
-	fi
-
-	if [[ $capsule_status -ne 0 ]]; then
-		log "capsule-ci: capsule-hello failed with status ${capsule_status}." >&2
-		return "$capsule_status"
-	fi
-
-	if [[ $capsule_hal_status -ne 0 ]]; then
-		log "capsule-ci: capsule-hal-smoke failed with status ${capsule_hal_status}." >&2
-		return "$capsule_hal_status"
-	fi
-
-	log "capsule-ci: capsule-hello succeeded."
-	return 0
+  if [[ -n "${CI_ARTIFACTS_DIR:-}" ]]; then
+    mkdir -p "${CI_ARTIFACTS_DIR}/cuttlefish"
+    [[ -n "$journal" ]] && printf '%s\n' "$journal" > "${CI_ARTIFACTS_DIR}/cuttlefish/journal.log"
+    if [[ -n "$console_path" ]] && file_exists "$console_path"; then
+      local tmp_console
+      tmp_console="$(mktemp)"
+      copy_to_local "$console_path" "$tmp_console"
+      cp "$tmp_console" "${CI_ARTIFACTS_DIR}/cuttlefish/console.log"
+      rm -f "$tmp_console"
+    fi
+  fi
 }
 
-log "Running CI checks..."
-run_rust_checks
+run_cuttlefish_stock_smoke() {
+  log "Requesting new cuttlefish instance via cfctl (stock images)..."
+  local create_json
+  if ! create_json="$(remote_cfctl instance create)"; then
+    log "Cuttlefish stock smoke FAILED (instance create)"
+    return 1
+  fi
 
-if hal_smoke_enabled; then
-	run_hal_smoke_ci
-fi
+  CFCTL_INSTANCE_ID="$(extract_json_field "$create_json" "create.summary.id")"
+  local adb_port
+  adb_port="$(extract_json_field "$create_json" "create.summary.adb.port")"
+  if [[ -z "$CFCTL_INSTANCE_ID" || -z "$adb_port" ]]; then
+    log "Cuttlefish stock smoke FAILED (invalid create response)"
+    return 1
+  fi
 
-if capsule_job_enabled; then
-	run_capsule_ci
-else
-	log "CI capsule job disabled (set CI_ENABLE_CAPSULE=1 to enable)."
-fi
+  log "Starting cuttlefish @ ${CFCTL_INSTANCE_ID}..."
+  if ! remote_cfctl instance start "$CFCTL_INSTANCE_ID"; then
+    log "Cuttlefish stock smoke FAILED (start)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
 
-log "CI completed successfully."
+  log "Waiting for adb on port ${adb_port}..."
+  if ! remote_cfctl wait-adb "$CFCTL_INSTANCE_ID" --timeout-secs 180; then
+    log "Cuttlefish stock smoke FAILED (wait-adb)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
+
+  log "Inspecting journal for boot completion..."
+  local logs_json journal
+  logs_json="$(remote_cfctl logs "$CFCTL_INSTANCE_ID" --lines 400 || true)"
+  journal="$(extract_json_field "$logs_json" "logs.journal")"
+  if [[ "$journal" != *"VIRTUAL_DEVICE_BOOT_COMPLETED"* ]]; then
+    log "Cuttlefish stock smoke FAILED (missing boot completion marker)"
+    fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+    return 1
+  fi
+
+  fetch_cfctl_logs "$CFCTL_INSTANCE_ID"
+
+  log "Cuttlefish stock smoke passed."
+  remote_cfctl instance destroy "$CFCTL_INSTANCE_ID" >/dev/null 2>&1 || true
+  CFCTL_INSTANCE_ID=""
+  return 0
+}
+
+main() {
+  run_fmt
+  run_clippy
+  run_check
+  run_release_builds
+  if (( SKIP_STOCK_SMOKE )); then
+    log "Skipping stock cuttlefish smoke test."
+  else
+    run_cuttlefish_stock_smoke
+  fi
+  log "CI completed successfully."
+}
+
+main "$@"

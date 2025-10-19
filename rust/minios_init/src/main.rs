@@ -1,14 +1,15 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 use anyhow::Result;
-use libc::c_ulong;
+use libc::{LINUX_REBOOT_CMD_RESTART, SYS_reboot, c_ulong};
 use log::{debug, error, info};
 use std::ffi::CString;
-use std::fs::{create_dir_all, OpenOptions};
+use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn main() -> Result<()> {
     init_logger();
@@ -16,8 +17,15 @@ fn main() -> Result<()> {
 
     mount_required_fs();
     info!("mounted dev/proc/sys");
+    ensure_dev_nodes();
+    write_marker();
+    for idx in 0..3 {
+        info!("phase1 heartbeat {idx}");
+        println!("minios heartbeat {idx}");
+        thread::sleep(Duration::from_millis(200));
+    }
 
-    if let Err(err) = Command::new("/system/bin/sh")
+    if let Err(err) = Command::new("/bin/sh")
         .arg("-c")
         .arg("echo [minios_init] init running > /dev/kmsg")
         .status()
@@ -34,10 +42,7 @@ fn main() -> Result<()> {
     thread::sleep(Duration::from_secs(5));
 
     info!("triggering reboot");
-    let _ = Command::new("/system/bin/sh")
-        .arg("-c")
-        .arg("/system/bin/reboot -f")
-        .status();
+    force_reboot();
 
     loop {
         thread::sleep(Duration::from_secs(60));
@@ -50,7 +55,13 @@ fn mount_required_fs() {
     try_mount_dir("/sys", Some("sysfs"), "sysfs", 0, None);
 }
 
-fn try_mount_dir(target: &str, source: Option<&str>, fstype: &str, flags: c_ulong, data: Option<&str>) {
+fn try_mount_dir(
+    target: &str,
+    source: Option<&str>,
+    fstype: &str,
+    flags: c_ulong,
+    data: Option<&str>,
+) {
     if let Err(err) = create_dir_all(target) {
         error!("mkdir {target} failed: {err}");
     }
@@ -102,6 +113,75 @@ fn mount(
 
 struct KmsgLogger;
 
+fn ensure_dev_nodes() {
+    const NODES: &[(&str, libc::mode_t, u32, u32)] = &[
+        ("/dev/console", libc::S_IFCHR | 0o600, 5, 1),
+        ("/dev/null", libc::S_IFCHR | 0o666, 1, 3),
+        ("/dev/urandom", libc::S_IFCHR | 0o644, 1, 9),
+        ("/dev/kmsg", libc::S_IFCHR | 0o600, 1, 11),
+        ("/dev/tty", libc::S_IFCHR | 0o666, 5, 0),
+    ];
+
+    for &(path, mode, major, minor) in NODES {
+        if Path::new(path).exists() {
+            continue;
+        }
+        match CString::new(path) {
+            Ok(c_path) => {
+                let dev = libc::makedev(major, minor);
+                let ret = unsafe { libc::mknod(c_path.as_ptr(), mode, dev) };
+                if ret != 0 {
+                    let err = std::io::Error::last_os_error();
+                    error!("mknod {path} failed: {err}");
+                    continue;
+                }
+                if unsafe { libc::chmod(c_path.as_ptr(), mode & 0o777) } != 0 {
+                    let err = std::io::Error::last_os_error();
+                    error!("chmod {path} failed: {err}");
+                }
+            }
+            Err(err) => error!("CString::new({path}) failed: {err}"),
+        }
+    }
+}
+
+fn write_marker() {
+    const MARKER_DIR: &str = "/metadata/minios_phase1";
+    if let Err(err) = create_dir_all(MARKER_DIR) {
+        error!("creating marker dir failed: {err}");
+        return;
+    }
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|dur| dur.as_secs())
+        .unwrap_or_default();
+    let contents = format!("phase1 ran at {timestamp}\n");
+    let path = format!("{MARKER_DIR}/last_run");
+    match std::fs::write(&path, contents) {
+        Ok(()) => info!("wrote marker {path}"),
+        Err(err) => error!("writing marker file failed: {err}"),
+    }
+}
+
+fn force_reboot() {
+    const MAGIC1: libc::c_long = 0xfee1_dead;
+    const MAGIC2: libc::c_long = 0x2812_1969;
+    unsafe {
+        libc::sync();
+        let res = libc::syscall(
+            SYS_reboot,
+            MAGIC1,
+            MAGIC2,
+            libc::c_long::from(LINUX_REBOOT_CMD_RESTART),
+            0,
+        );
+        if res != 0 {
+            let err = std::io::Error::last_os_error();
+            error!("syscall(SYS_reboot) failed: {err}");
+        }
+    }
+}
+
 static LOGGER: KmsgLogger = KmsgLogger;
 
 fn init_logger() {
@@ -119,7 +199,12 @@ impl log::Log for KmsgLogger {
             return;
         }
         if let Ok(mut file) = OpenOptions::new().write(true).open("/dev/kmsg") {
-            let _ = writeln!(file, "minios_init[{}]: {}", std::process::id(), record.args());
+            let _ = writeln!(
+                file,
+                "minios_init[{}]: {}",
+                std::process::id(),
+                record.args()
+            );
             let _ = file.flush();
         } else {
             eprintln!("minios_init[{}]: {}", std::process::id(), record.args());

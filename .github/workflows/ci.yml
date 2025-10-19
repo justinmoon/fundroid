@@ -9,6 +9,8 @@ on:
 jobs:
   ci:
     runs-on: [self-hosted, nixos, hetzner]
+    env:
+      CFCTL_BIN: /run/current-system/sw/bin/cfctl
     steps:
       - uses: actions/checkout@v4
         with:

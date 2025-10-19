@@ -1,6 +1,10 @@
 use android_logger::Config;
 use log::{info, LevelFilter};
-use std::{env, path::{Path, PathBuf}, time::Duration};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 /// Binder endpoints resolved from environment variables.
 ///

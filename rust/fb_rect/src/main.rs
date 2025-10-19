@@ -115,7 +115,10 @@ fn main() -> Result<()> {
             }
         }
         _ => {
-            anyhow::bail!("Unsupported bpp: {}. Only 16, 24, and 32 bpp supported.", bpp);
+            anyhow::bail!(
+                "Unsupported bpp: {}. Only 16, 24, and 32 bpp supported.",
+                bpp
+            );
         }
     }
 
@@ -215,9 +218,9 @@ mod tests {
         let blue = orange_32 & 0xFF;
 
         assert_eq!(alpha, 0xFF); // Fully opaque
-        assert_eq!(red, 0xFF);   // Full red
+        assert_eq!(red, 0xFF); // Full red
         assert_eq!(green, 0x88); // Half green
-        assert_eq!(blue, 0x00);  // No blue
+        assert_eq!(blue, 0x00); // No blue
 
         // Verify RGB565 orange (16bpp)
         let orange_565: u16 = 0xF880;
@@ -227,7 +230,7 @@ mod tests {
 
         assert_eq!(r5, 31); // Full red (5 bits)
         assert_eq!(g6, 17); // ~Half green (6 bits)
-        assert_eq!(b5, 0);  // No blue (5 bits)
+        assert_eq!(b5, 0); // No blue (5 bits)
     }
 
     #[test]

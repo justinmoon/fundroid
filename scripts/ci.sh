@@ -3,10 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CI_CRATES=(
-  "rust/webosd"
-  "rust/fb_rect"
   "rust/drm_rect"
-  "rust/minios_init"
 )
 CI_TARGETS=("x86_64-linux-android" "aarch64-linux-android")
 
@@ -83,10 +80,7 @@ file_exists() {
 }
 
 targets_for() {
-  case "$1" in
-    rust/minios_init) echo "aarch64-linux-android" ;;
-    *) echo "${CI_TARGETS[@]}" ;;
-  esac
+  echo "${CI_TARGETS[@]}"
 }
 
 run_fmt() {

@@ -226,3 +226,8 @@
 - Wrote background host scripts that wait for the per-instance runtime tree (e.g. `/var/lib/cuttlefish/instances/<id>/instances/cvd-<id>/…`) and copy out artifacts before cuttlefish tears them down. Captured `/tmp/metadata*.img` successfully, but the image contents are zeroed—Android apparently recreates `/metadata` on a writable filesystem later, so the first-stage writes do not persist there.
 - Attempted to capture `/tmp/cf_init_marker` and `kernel.log` the same way; symlink resolution is tricky because cuttlefish destroys the instance directory as soon as QEMU exits, so the copy must happen while the guest is still running.
 - Still no `[cf-init]` strings in `cfctl-run.log` or host `dmesg`; suspicion is that the launch log does not swallow guest stdout/stderr. Next iteration will focus on pulling `kernel.log` and `/tmp/cf_init_marker` directly from the running runtime tree before teardown, and, if necessary, writing to an always-present host-visible path (e.g. `/var/log/cf_init/<id>.log`) via bind mount.
+
+## 2025-10-21 23:50 UTC — Dual-Wrapper Strategy for CI
+- Restored a minimal passthrough wrapper in `init/init_wrapper.c` for the CI smoke test. This version only logs a breadcrumb and immediately `execv("/init.stock")` after mounting the standard filesystems.
+- Preserved the experimental wrapper (with marker syncing and extended logging) in `init/init_wrapper_experimental.c` for ongoing manual testing.
+- Next steps: iterate on the experimental wrapper until it can replace the passthrough version without causing the cuttlefish smoke test to fail.

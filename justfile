@@ -7,6 +7,51 @@ build-drm-x86:
 build-drm-arm64:
 	cargo build --manifest-path rust/drm_rect/Cargo.toml --target aarch64-linux-android --release
 
+# Build passthrough init_boot image for demos
+demo-build:
+	@set -euo pipefail; \
+	stock_img=""; \
+	if [ -f build/images/init_boot.stock.img ]; then \
+		stock_img="build/images/init_boot.stock.img"; \
+	elif [ -f build/init_boot_stock.img ]; then \
+		stock_img="build/init_boot_stock.img"; \
+	else \
+		echo "Missing stock init_boot image. Place it at build/images/init_boot.stock.img or build/init_boot_stock.img." >&2; \
+		exit 1; \
+	fi; \
+	key_path=""; \
+	if [ -f build/images/cvd_avb_testkey_rsa4096.pem ]; then \
+		key_path="build/images/cvd_avb_testkey_rsa4096.pem"; \
+	elif [ -f build/cvd_avb_testkey_rsa4096.pem ]; then \
+		key_path="build/cvd_avb_testkey_rsa4096.pem"; \
+	else \
+		echo "Missing AVB test key (build/images/cvd_avb_testkey_rsa4096.pem)." >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p build out/demo; \
+	zig cc -target x86_64-linux-musl -static -O2 init/init_wrapper.c -o build/init-wrapper-demo; \
+	cd out/demo && \
+		unpack_bootimg --boot_img ../../$$stock_img --format=mkbootimg > unpack_info.txt && \
+		rm -f ramdisk.uncompressed ramdisk.demo.cpio ramdisk.demo.lz4 && \
+		lz4 -d out/ramdisk ramdisk.uncompressed && \
+		python3 ../../scripts/cpio_edit.py \
+			-i ramdisk.uncompressed \
+			-o ramdisk.demo.cpio \
+			--rename init=init.stock \
+			--add init=../../build/init-wrapper-demo && \
+		lz4 -l ramdisk.demo.cpio ramdisk.demo.lz4 && \
+		mkbootimg --kernel out/kernel --ramdisk ramdisk.demo.lz4 \
+			--header_version 4 --os_version 16.0.0 --os_patch_level 2025-06 \
+			--cmdline '' --output ../../build/init_boot_passthrough.img; \
+	avbtool add_hash_footer \
+		--image build/init_boot_passthrough.img \
+		--partition_size 8388608 \
+		--partition_name init_boot \
+		--algorithm SHA256_RSA4096 \
+		--key $$key_path \
+		--rollback_index 1749081600; \
+	echo "Generated build/init_boot_passthrough.img (signed)."
+
 # Run DRM demo on connected device
 run-drm-demo:
 	@arch=$$(adb shell uname -m | tr -d '\r'); \
@@ -134,4 +179,3 @@ ci-remote:
 
 ci-local:
 	CI_SKIP_STOCK_SMOKE=1 nix run .#ci
-

@@ -1,0 +1,27 @@
+Footer version:           1.0
+Image size:               8388608 bytes
+Original image size:      3325952 bytes
+VBMeta offset:            3325952
+VBMeta size:              2432 bytes
+--
+Minimum libavb version:   1.0
+Header Block:             256 bytes
+Authentication Block:     576 bytes
+Auxiliary Block:          1600 bytes
+Public key (sha1):        2597c218aae470a130f61162feaae70afd97f011
+Algorithm:                SHA256_RSA4096
+Rollback Index:           1749081600
+Flags:                    0
+Rollback Index Location:  0
+Release String:           'avbtool 1.3.0'
+Descriptors:
+    Hash descriptor:
+      Image Size:            3325952 bytes
+      Hash Algorithm:        sha256
+      Partition Name:        init_boot
+      Salt:                  580b175bb5dc541fbd6b3432a2e2fec813ebc8851774a9ada7be86ce5d225de5
+      Digest:                2a74e03d6e58d4407c7350d85aa10c0946855097ff5ec0c81726eb93912514f9
+      Flags:                 0
+    Prop: com.android.build.init_boot.os_version -> '16'
+    Prop: com.android.build.init_boot.fingerprint -> 'generic/aosp_cf_x86_64_only_phone/vsoc_x86_64_only:16/BP2A.250605.031.A2/14085914:userdebug/test-keys'
+    Prop: com.android.build.init_boot.security_patch -> '2025-06-05'

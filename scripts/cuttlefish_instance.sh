@@ -318,8 +318,8 @@ case "$COMMAND" in
     }
     ;;
   deploy)
-    local init_path=""
-    local boot_path=""
+    init_path=""
+    boot_path=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --init)
@@ -338,11 +338,10 @@ case "$COMMAND" in
     if [[ -z "$init_path" && -z "$boot_path" ]]; then
       die "deploy requires --init and/or --boot"
     fi
-    local remote_dir
     remote_dir="$(remote_instance_dir)"
     remote_shell "set -eu; mkdir -p $(printf '%q' "$remote_dir")"
-    local init_remote=""
-    local boot_remote=""
+    init_remote=""
+    boot_remote=""
     if [[ -n "$init_path" ]]; then
       [[ -f "$init_path" ]] || die "init image not found: $init_path"
       init_remote="${remote_dir}/init_boot.img"
@@ -353,7 +352,6 @@ case "$COMMAND" in
       boot_remote="${remote_dir}/boot.img"
       copy_to_remote "$boot_path" "$boot_remote"
     fi
-    local current_boot current_init
     current_boot="$(current_env_value CUTTLEFISH_BOOT_IMAGE)"
     current_init="$(current_env_value CUTTLEFISH_INIT_BOOT_IMAGE)"
     if [[ -z "$boot_remote" ]]; then

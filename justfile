@@ -135,3 +135,7 @@ ci-remote:
 ci-local:
 	CI_SKIP_STOCK_SMOKE=1 nix run .#ci
 
+# Heartbeat PID1 demo
+heartbeat-test:
+	@scripts/test-heartbeat.sh
+

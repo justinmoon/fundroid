@@ -37,22 +37,47 @@ This happens after kernel boot but before full userspace initialization. The VM 
 
 **Heartbeat messages:** We haven't confirmed yet whether our init actually runs and prints the heartbeat messages. The console logs via cfctl may not be capturing early boot output, or our init might be crashing before printing.
 
+### Latest Changes (Commit 4d1ba9e)
+
+**Improved heartbeat_init.c for debugging:**
+- ✅ Dual logging to stderr + /dev/kmsg
+- ✅ Super-early print with PID and exe path
+- ✅ Unbuffered stdout/stderr
+- ✅ Device node checks (/dev/console, null, urandom, kmsg)
+- ✅ Verify /init.stock exists and is executable
+- ✅ Removed sleeps - chain immediately after marker
+- ✅ Fallback to /sbin/init and /bin/sh if exec fails
+
+**CPIO verification (via lz4 + cpio -tv):**
+- ✅ `/init` = our 969KB heartbeat binary (confirmed)
+- ✅ `/init.stock` = original 4MB Android init (confirmed)
+
+### Blocked By
+
+**Cuttlefish infrastructure instability:**
+- cfctl daemon connection issues
+- Instance start failures (qemu datadir errors)
+- Unable to reliably capture console logs
+- Need stable environment to verify init execution
+
 ### Next Steps
 
-1. **Verify init execution:**
-   - Access console logs directly (not via cfctl which seems unstable)
-   - Check if VIRTUAL_DEVICE_BOOT_COMPLETED and cf-heartbeat messages appear
-   - Confirm our init runs before secure_env crash
+1. **Fix cuttlefish infrastructure** (or work around it)
+   - Stabilize cfctl daemon
+   - OR: Access console logs directly from filesystem
+   - OR: Use alternative deployment method
 
-2. **Fix secure_env crash:**
-   - Investigate what secure_env expects from init
-   - May need to set up additional environment/mounts before chaining to stock init
-   - Or may need to chain to stock init immediately without delays
+2. **Capture actual console output** to determine:
+   - Does our init run? (look for "[cf-heartbeat] init start")
+   - Do device nodes exist? (check device check logs)
+   - Does /init.stock chain work? (look for "chaining" message)
+   - What error causes secure_env crash?
 
-3. **Alternative approaches if needed:**
-   - Print heartbeat from a different stage (early in stock init?)
-   - Use kernel command line to add debug output
-   - Modify stock init instead of replacing it entirely
+3. **Fix based on evidence:**
+   - If init doesn't run: kernel panic before userspace
+   - If device nodes missing: add mknod fallbacks
+   - If chaining fails: investigate exec error message
+   - If secure_env specific: add missing setup it expects
 
 ## Files
 

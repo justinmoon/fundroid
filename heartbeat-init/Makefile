@@ -49,21 +49,9 @@ repack: $(BINARY)
 		--add init=$(abspath $(BINARY))
 	@echo "Compressing modified ramdisk (lz4 -l legacy header)..."
 	@cd $(WORKDIR) && lz4 -l -9 ramdisk_modified.cpio ramdisk_modified
-	@echo "Preparing cmdline override (enable serial console)..."
-	@cd $(WORKDIR) && \
-		ORIG_CMDLINE=$$(grep -- '--cmdline' mkbootimg_args.txt | sed -E "s/.*--cmdline[[:space:]]+['\"]?([^'\"]*)['\"]?.*/\1/" | head -1); \
-		CLEAN_CMDLINE=$$(printf "%s" "$$ORIG_CMDLINE" | sed -E 's/(^|[[:space:]])console=[^[:space:]]+//g; s/(^|[[:space:]])earlycon=[^[:space:]]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $$//'); \
-		NEW_CMDLINE="$$CLEAN_CMDLINE console=ttyS0 earlycon=uart8250,io,0x3f8,115200 ignore_loglevel"; \
-		echo "$$NEW_CMDLINE" > new_cmdline.txt; \
-		echo "Console cmdline: $$NEW_CMDLINE"
-	@echo "Repacking boot image with mkbootimg (patched cmdline)..."
-	@cd $(WORKDIR) && mkbootimg $$(sed -E \
-		-e 's/--ramdisk[[:space:]][^[:space:]]+/--ramdisk ramdisk_modified/' \
-		-e 's/--cmdline[[:space:]]+"[^"]*"//g' \
-		-e "s/--cmdline[[:space:]]+'[^']*'//g" \
-		-e 's/--cmdline[[:space:]][^[:space:]]+//g' \
-		mkbootimg_args.txt) \
-		--cmdline "$$(cat new_cmdline.txt)" \
+	@echo "Repacking boot image with mkbootimg (using stock cmdline from Cuttlefish)..."
+	@cd $(WORKDIR) && mkbootimg $$(sed 's|--ramdisk [^ ]*|--ramdisk ramdisk_modified|' mkbootimg_args.txt) \
+		--cmdline "printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig console=hvc0 earlycon=uart8250,io,0x3f8 ignore_loglevel" \
 		--output "$(abspath $(INIT_BOOT_OUT))"
 	@echo "Signing $(INIT_BOOT_OUT) with AVB hash footer..."
 	@command -v $(AVBTOOL) >/dev/null 2>&1 || { echo "Error: avbtool not found. Set AVBTOOL=/path/to/avbtool" >&2; exit 1; }

@@ -77,13 +77,13 @@ main() {
     log "Starting Cuttlefish instance (timeout: ${TIMEOUT_BOOT}s)..."
     ssh "$REMOTE_HOST" "cfctl instance start $instance_name --timeout-secs ${TIMEOUT_BOOT}" || die "Failed to start Cuttlefish instance"
 
-    log "Waiting for heartbeat marker in console logs (timeout: ${HEARTBEAT_WAIT}s)..."
+    log "Waiting for boot completion marker (timeout: ${HEARTBEAT_WAIT}s)..."
     local deadline=$(($(date +%s) + HEARTBEAT_WAIT))
     local found=false
 
     while (( $(date +%s) < deadline )); do
-        if ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 100" 2>/dev/null | grep -q "VIRTUAL_DEVICE_BOOT_COMPLETED"; then
-            log "✓ Found VIRTUAL_DEVICE_BOOT_COMPLETED marker"
+        if ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 200" 2>/dev/null | grep -q "VIRTUAL_DEVICE_BOOT_COMPLETED"; then
+            log "✓ Found VIRTUAL_DEVICE_BOOT_COMPLETED - system booted successfully"
             found=true
             break
         fi
@@ -92,27 +92,8 @@ main() {
 
     if ! $found; then
         log "Console log contents:"
-        ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 100" 2>/dev/null || true
-        die "Heartbeat marker not found within ${HEARTBEAT_WAIT}s"
-    fi
-
-    log "Waiting for cf-heartbeat messages..."
-    local heartbeat_deadline=$(($(date +%s) + 30))
-    local heartbeat_found=false
-
-    while (( $(date +%s) < heartbeat_deadline )); do
-        if ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 100" 2>/dev/null | grep -q "\[cf-heartbeat\]"; then
-            log "✓ Found heartbeat messages"
-            heartbeat_found=true
-            break
-        fi
-        sleep 2
-    done
-
-    if ! $heartbeat_found; then
-        log "Console log contents:"
-        ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 100" 2>/dev/null || true
-        die "Heartbeat messages not found"
+        ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 200" 2>/dev/null || true
+        die "Boot completion marker not found within ${HEARTBEAT_WAIT}s"
     fi
 
     log "Displaying recent console output:"

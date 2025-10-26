@@ -2,6 +2,11 @@
 
 This directory contains all cuttlefish-related Nix packages, modules, and tooling consolidated into a single flake.
 
+## Documentation
+
+- **[CUTTLEFISH_README.md](docs/CUTTLEFISH_README.md)** - Overview and quick links
+- **[AOSP_BUILD.md](docs/AOSP_BUILD.md)** - Building custom cuttlefish from AOSP sources
+
 ## Structure
 
 ```

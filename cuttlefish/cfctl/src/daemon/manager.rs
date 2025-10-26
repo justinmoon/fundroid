@@ -116,6 +116,7 @@ mod tests {
             cuttlefish_assembly_dir: root.join("cf_assembly"),
             cuttlefish_system_image_dir: root.join("images"),
             disable_host_gpu: true,
+            ..CfctlDaemonConfig::default()
         }
     }
 

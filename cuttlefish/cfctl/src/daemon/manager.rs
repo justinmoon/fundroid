@@ -1955,7 +1955,7 @@ impl InstanceManager {
         let target_user = "justin";
         let primary_group = "users";
         let required_groups = vec!["cvdnetwork", "kvm"];
-        let capabilities = vec!["cap_net_admin"];
+        let capabilities = vec!["+net_admin"];
         
         // Resolve UIDs/GIDs
         let uid = resolve_uid(target_user)?;

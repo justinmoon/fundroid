@@ -2657,10 +2657,8 @@ impl InstanceManager {
         }
 
         let snapshot_path = paths.root.join("console_snapshot.log");
-        let content = fs::read_to_string(&console_log)
-            .with_context(|| format!("reading console log {}", console_log.display()))?;
-        fs::write(&snapshot_path, &content)
-            .with_context(|| format!("writing console snapshot {}", snapshot_path.display()))?;
+        fs::copy(&console_log, &snapshot_path)
+            .with_context(|| format!("copying console log {} to {}", console_log.display(), snapshot_path.display()))?;
         
         info!(
             target: "cfctl",

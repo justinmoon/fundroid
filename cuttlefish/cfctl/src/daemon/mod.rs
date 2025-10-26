@@ -177,7 +177,8 @@ impl CfctlDaemon {
             | DestroyInstance { id, .. }
             | WaitForAdb { id, .. }
             | Logs { id, .. }
-            | Status { id } => Some(*id),
+            | Status { id }
+            | Describe { id, .. } => Some(*id),
             Deploy(req) => Some(req.id),
             _ => None,
         };

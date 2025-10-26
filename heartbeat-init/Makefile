@@ -49,9 +49,22 @@ repack: $(BINARY)
 		--add init=$(abspath $(BINARY))
 	@echo "Compressing modified ramdisk (lz4 -l legacy header)..."
 	@cd $(WORKDIR) && lz4 -l -9 ramdisk_modified.cpio ramdisk_modified
-	@echo "Repacking boot image with mkbootimg (using stock cmdline from Cuttlefish)..."
-	@cd $(WORKDIR) && mkbootimg $$(sed 's|--ramdisk [^ ]*|--ramdisk ramdisk_modified|' mkbootimg_args.txt) \
-		--cmdline "printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig console=hvc0 earlycon=uart8250,io,0x3f8 ignore_loglevel" \
+	@echo "Extracting and modifying cmdline from stock image..."
+	@cd $(WORKDIR) && { \
+		ORIG_CMDLINE=$$(python3 -c "import re; m=re.search(r\"--cmdline\s+('[^']*'|\\\"[^\\\"]*\\\"|\S+)\", open('mkbootimg_args.txt').read()); print(m.group(1).strip('\"' + chr(39)) if m else '')"); \
+		echo "Original cmdline: $$ORIG_CMDLINE"; \
+		if [ -z "$$ORIG_CMDLINE" ]; then \
+			BASE_CMDLINE="printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig"; \
+		else \
+			BASE_CMDLINE=$$(echo "$$ORIG_CMDLINE" | sed -E 's/(^| )console=[^ ]+//g; s/(^| )earlycon=[^ ]+//g; s/  +/ /g; s/^ //; s/ $$//'); \
+		fi; \
+		NEW_CMDLINE="$$BASE_CMDLINE console=ttyS0 earlycon=uart8250,io,0x3f8,115200 ignore_loglevel"; \
+		echo "Modified cmdline: $$NEW_CMDLINE"; \
+		echo "$$NEW_CMDLINE" > cmdline_modified.txt; \
+	}
+	@echo "Repacking boot image with mkbootimg..."
+	@cd $(WORKDIR) && mkbootimg $$(sed 's|--ramdisk [^ ]*|--ramdisk ramdisk_modified|; /--cmdline/d' mkbootimg_args.txt) \
+		--cmdline "$$(cat $(WORKDIR)/cmdline_modified.txt)" \
 		--output "$(abspath $(INIT_BOOT_OUT))"
 	@echo "Signing $(INIT_BOOT_OUT) with AVB hash footer..."
 	@command -v $(AVBTOOL) >/dev/null 2>&1 || { echo "Error: avbtool not found. Set AVBTOOL=/path/to/avbtool" >&2; exit 1; }

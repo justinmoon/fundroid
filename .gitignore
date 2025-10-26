@@ -29,3 +29,12 @@ artifacts/
 
 # nix
 .direnv/
+
+# Build artifacts
+heartbeat-init/.build/
+heartbeat-init/heartbeat_init
+heartbeat-init/init_boot.img
+init_boot.img
+
+# Editor directories
+.helix/

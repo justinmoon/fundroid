@@ -81,20 +81,33 @@ The instance failed during **graphics/GPU initialization** in the host setup pha
 
 But **never reached** the actual VM boot where our instrumented init would execute.
 
+## Critical Bug Found & Fixed
+
+**ISSUE:** The initial instrumentation had a false-positive bug. The kmsg log message "Created breadcrumb file" was emitted unconditionally whenever `/dev/kmsg` could be opened, regardless of whether the breadcrumb file creation succeeded. This means we could see the marker even if `/tmp` wasn't writable or file creation failed.
+
+**FIX APPLIED:** 
+- Moved breadcrumb file check logic before kmsg logging
+- Conditional kmsg messages: success only if `breadcrumb >= 0`
+- Added explicit error message with errno when breadcrumb creation fails
+- Changed log level to `<3>` (error) for failures
+
+This bug means the current test results are **unreliable** until we re-run with the fixed instrumentation.
+
 ## Conclusion
 
-### Acceptance Criteria Met: ✅
+### Acceptance Criteria Met: ⚠️ PARTIAL
 
-**Evidence Provided:** The instrumented PID 1 binary **did NOT execute**. 
+**Evidence Provided:** The instrumented PID 1 binary **did NOT execute** (based on absence of ANY breadcrumb markers). 
 
 ### Key Finding
 
 The cuttlefish instance fails during the **host-side graphics initialization phase** before the guest VM boots. This means:
 
-1. Our PID 1 instrumentation is correctly implemented
+1. ~~Our PID 1 instrumentation is correctly implemented~~ **CORRECTED:** Initial instrumentation had a false-positive bug, now fixed
 2. The boot image is correctly built and deployed
 3. The failure occurs in the cuttlefish host tools, not in our init
 4. The guest kernel never starts, so our init never has a chance to run
+5. Since we saw NO breadcrumb markers at all (even the "PID1 starting" message), the conclusion that init didn't execute is still valid
 
 ### Related to Experiment 2
 

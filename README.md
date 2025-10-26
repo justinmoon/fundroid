@@ -48,6 +48,7 @@ Run `just` to see all available commands:
 - `just run-drm-demo` - Run DRM demo on connected device
 - `just emu-create` / `just emu-boot` / `just emu-root` / `just emu-stop` - Emulator management
 - `just ci` - Run CI pipeline
+- `just heartbeat` - Run heartbeat PID1 test on remote Cuttlefish host (captures logs automatically)
 
 ## CI/CD
 
@@ -56,6 +57,25 @@ The project includes a robust CI pipeline that:
 - Runs formatting and linting checks
 - Executes Cuttlefish boot tests (when cfctl is available)
 - Validates that the core DRM functionality works
+
+## Heartbeat PID1 Test
+
+The heartbeat test validates that our custom PID1 init can boot on a Cuttlefish instance and emit heartbeat markers to the console. To run the test:
+
+```bash
+just heartbeat
+```
+
+This command:
+- Builds the heartbeat_init binary
+- Repacks the init_boot.img with our custom PID1
+- Deploys and boots a Cuttlefish instance on the remote host
+- Captures console output and verifies boot completion
+- Automatically saves logs to `logs/heartbeat-<timestamp>.log`
+
+Environment variables:
+- `CUTTLEFISH_REMOTE_HOST` - Remote host to run the test on (default: hetzner)
+- `REMOTE_CFCTL` - Path to cfctl binary on remote host (default: cfctl)
 
 ## Kernel Requirements
 

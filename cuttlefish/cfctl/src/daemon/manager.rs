@@ -1700,9 +1700,34 @@ impl InstanceManager {
                 "timeout expired before logs retrieved",
             ));
         }
+
+        if self.metadata(id).is_err() {
+            return Err(error_detail(
+                "instance_not_found",
+                format!("Instance {} does not exist or metadata cannot be read", id),
+            ));
+        }
+
         let journal = self
             .guest_log_tail(id, lines.unwrap_or(self.config.journal_lines))
-            .map_err(|err| error_detail("logs_fetch_failed", err.to_string()))?;
+            .map_err(|err| {
+                let paths = self.paths(id);
+                if !paths.run_log_path().exists() {
+                    error_detail(
+                        "logs_not_available",
+                        format!(
+                            "Run log does not exist yet for instance {}. The instance may not have been started.",
+                            id
+                        ),
+                    )
+                } else {
+                    error_detail(
+                        "logs_fetch_failed",
+                        format!("Failed to read logs for instance {}: {}", id, err),
+                    )
+                }
+            })?;
+
         let console_path = format!(
             "/var/lib/cuttlefish/instances/{}/instances/cvd-{}/console_log",
             id, id

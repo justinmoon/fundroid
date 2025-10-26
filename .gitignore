@@ -42,3 +42,5 @@ heartbeat-init/heartbeat_init
 heartbeat-init/heartbeat_init_minimal
 heartbeat-init/init_boot.img
 heartbeat-init/.build/
+init_boot.img
+init_boot.stock.img

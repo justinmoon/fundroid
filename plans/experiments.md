@@ -7,9 +7,11 @@ We’re now rebased on master with the new `cfctl` features:
 
 Let’s split up and explore several threads in parallel. Below are five experiment ideas—pick one (or improvise) and document findings in `notes/` or `docs/`. Keep commits tight and reference logs/evidence.
 
+Status update: Experiments 1–5 are complete (see results inline); Experiments 6–8 track the next wave.
+
 ---
 
-### Experiment 1 – “Heartbeat happy path”
+### Experiment 1 – “Heartbeat happy path” ✅ COMPLETE
 **Goal:** Prove our standalone PID 1 prints `[cf-heartbeat]` when launched via cfctl.
 1. Ensure the remote host is running the latest `cfctl` with `logs --follow`. If not, redeploy (`~/configs`, `just hetzner`) or push binaries to the host.
 2. Run `scripts/test-heartbeat.sh` (set `REMOTE_CFCTL=/home/justin/cfctl-dev/cfctl` if testing local binaries). The script should stream the console and detect three heartbeats.
@@ -17,15 +19,19 @@ Let’s split up and explore several threads in parallel. Below are five experim
 
 **Acceptance criteria:** Script exits success and we have proof (`VIRTUAL_DEVICE_BOOT_COMPLETED` + 3 `[cf-heartbeat]` lines). Document where the log lives.
 
+**Result:** Met by commit `4231143` (“SUCCESS: Heartbeat init fully working!”) – `scripts/test-heartbeat.sh` now streams `[cf-heartbeat]` lines on Hetzner with logs preserved alongside the commit.
+
 ---
 
-### Experiment 2 – “Why does the guest exit?”
+### Experiment 2 – “Why does the guest exit?” ✅ COMPLETE
 **Goal:** Understand why instances flip to `failed` even when held.
 1. Manually drive the lifecycle: create, deploy, hold, start (`--skip-adb-wait`).
 2. While running, copy `/var/lib/cfctl/instances/<id>/cfctl-run.log` and any console log. Inspect host journal if needed.
 3. Identify the first fatal message (graphics probe? kernel panic?) and summarize.
 
 **Acceptance criteria:** Notes outlining the failure cause with log snippets. Bonus if you suggest or test a mitigation (e.g., forcing `--gpu_mode=guest_swiftshader`).
+
+**Result:** Root cause captured in `notes/experiment-3-findings.md` – host-side graphics detector crashes (`PopulateVulkanExternalMemoryHostQuirk` SIGABRT) prevent the guest from booting; mitigation experiments are now tracked in Experiment 7.
 
 ---
 

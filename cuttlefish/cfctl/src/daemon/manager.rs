@@ -459,6 +459,18 @@ impl InstanceManager {
                     error: None,
                 })
             }
+            Request::Describe { id, run_log_lines } => {
+                let response = self.describe(id, run_log_lines)?;
+                Ok(Response {
+                    ok: true,
+                    message: None,
+                    create: None,
+                    action: Some(response),
+                    logs: None,
+                    instances: None,
+                    error: None,
+                })
+            }
             Request::ListInstances => {
                 let instances = self.list_instances()?;
                 Ok(Response {
@@ -943,6 +955,8 @@ impl InstanceManager {
                 journal_tail: None,
                 verification: None,
                 cleanup: None,
+                run_log_tail: None,
+                console_snapshot_path: None,
             })
         } else {
             let effective_timeout = options
@@ -1024,6 +1038,8 @@ impl InstanceManager {
             journal_tail: None,
             verification: None,
             cleanup: Some(cleanup_summary),
+            run_log_tail: None,
+            console_snapshot_path: None,
         })
     }
 
@@ -1040,6 +1056,8 @@ impl InstanceManager {
             journal_tail: None,
             verification: None,
             cleanup: None,
+            run_log_tail: None,
+            console_snapshot_path: None,
         })
     }
 
@@ -1136,6 +1154,8 @@ impl InstanceManager {
             journal_tail: None,
             verification: None,
             cleanup: Some(cleanup_summary),
+            run_log_tail: None,
+            console_snapshot_path: None,
         })
     }
 
@@ -1360,6 +1380,8 @@ impl InstanceManager {
                         journal_tail: None,
                         verification: None,
                         cleanup: None,
+                        run_log_tail: None,
+                        console_snapshot_path: None,
                     });
                 }
                 Ok(None) => {
@@ -1765,6 +1787,32 @@ impl InstanceManager {
             journal_tail: None,
             verification: None,
             cleanup: None,
+            run_log_tail: None,
+            console_snapshot_path: None,
+        })
+    }
+
+    fn describe(&mut self, id: InstanceId, run_log_lines: Option<usize>) -> Result<InstanceActionResponse> {
+        let metadata = self.metadata(id)?;
+        let summary = metadata.summary(&self.config.adb_host);
+        let lines = run_log_lines.unwrap_or(50);
+        let run_log_tail = self.guest_log_tail(id, lines)?;
+        
+        let paths = self.paths(id);
+        let console_snapshot = paths.root.join("console_snapshot.log");
+        let console_snapshot_path = if console_snapshot.exists() {
+            Some(console_snapshot.display().to_string())
+        } else {
+            None
+        };
+        
+        Ok(InstanceActionResponse {
+            summary,
+            journal_tail: None,
+            verification: None,
+            cleanup: None,
+            run_log_tail,
+            console_snapshot_path,
         })
     }
 
@@ -2100,9 +2148,21 @@ impl InstanceManager {
             new_state
         );
 
-        metadata.state = new_state;
+        metadata.state = new_state.clone();
         metadata.updated_at = epoch_secs()?;
         let paths = self.paths(id);
+        
+        if new_state == InstanceState::Failed {
+            if let Err(err) = self.snapshot_console_on_failure(id, &paths) {
+                warn!(
+                    target: "cfctl",
+                    "handle_guest_exit: failed to snapshot console for {}: {:#}",
+                    id,
+                    err
+                );
+            }
+        }
+        
         self.write_metadata(&paths, &metadata)?;
         self.metadata_cache.insert(id, metadata.clone());
         self.cleanup_host_state(id);
@@ -2608,5 +2668,29 @@ impl InstanceManager {
         }
         let content = tail_file(paths.run_log_path(), lines)?;
         Ok(Some(content))
+    }
+
+    fn snapshot_console_on_failure(&self, id: InstanceId, paths: &InstancePaths) -> Result<()> {
+        let console_log = self.console_log_path(id);
+        if !console_log.exists() {
+            debug!(
+                target: "cfctl",
+                "snapshot_console_on_failure: console log {} does not exist",
+                console_log.display()
+            );
+            return Ok(());
+        }
+
+        let snapshot_path = paths.root.join("console_snapshot.log");
+        fs::copy(&console_log, &snapshot_path)
+            .with_context(|| format!("copying console log {} to {}", console_log.display(), snapshot_path.display()))?;
+        
+        info!(
+            target: "cfctl",
+            "snapshot_console_on_failure: saved console snapshot for instance {} to {}",
+            id,
+            snapshot_path.display()
+        );
+        Ok(())
     }
 }

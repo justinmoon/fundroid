@@ -177,7 +177,8 @@ impl CfctlDaemon {
             | DestroyInstance { id, .. }
             | WaitForAdb { id, .. }
             | Logs { id, .. }
-            | Status { id } => Some(*id),
+            | Status { id }
+            | Describe { id, .. } => Some(*id),
             Deploy(req) => Some(req.id),
             _ => None,
         };
@@ -282,6 +283,7 @@ fn describe_request(request: &Request) -> String {
         Request::WaitForAdb { id, .. } => format!("WaitForAdb({})", id),
         Request::Logs { id, .. } => format!("Logs({})", id),
         Request::Status { id } => format!("Status({})", id),
+        Request::Describe { id, .. } => format!("Describe({})", id),
         Request::ListInstances => "ListInstances".to_string(),
         Request::PruneExpired { max_age_secs } => {
             format!("PruneExpired(max_age_secs={})", max_age_secs)

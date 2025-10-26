@@ -183,3 +183,24 @@ ci-local:
 # Heartbeat PID1 demo
 heartbeat-test:
 	@scripts/test-heartbeat.sh
+
+# Heartbeat test with convenient defaults and log capture
+heartbeat:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	remote_host="${CUTTLEFISH_REMOTE_HOST:-hetzner}"
+	remote_cfctl="${REMOTE_CFCTL:-cfctl}"
+	log_dir="logs"
+	timestamp=$(date +%Y%m%d-%H%M%S)
+	log_file="${log_dir}/heartbeat-${timestamp}.log"
+	mkdir -p "${log_dir}"
+	echo "Running heartbeat test on ${remote_host}..."
+	echo "Using cfctl: ${remote_cfctl}"
+	echo "Capturing logs to: ${log_file}"
+	if CUTTLEFISH_REMOTE_HOST="${remote_host}" REMOTE_CFCTL="${remote_cfctl}" scripts/test-heartbeat.sh 2>&1 | tee "${log_file}"; then
+		echo "✓ Heartbeat test passed - logs saved to ${log_file}"
+		exit 0
+	else
+		echo "✗ Heartbeat test failed - logs saved to ${log_file}"
+		exit 1
+	fi

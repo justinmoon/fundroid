@@ -27,6 +27,9 @@ local.properties
 # capsule run logs
 artifacts/
 
+# heartbeat test logs
+logs/
+
 # nix
 .direnv/
 

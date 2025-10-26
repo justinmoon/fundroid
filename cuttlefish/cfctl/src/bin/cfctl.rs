@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use cfctl::{
     DeployRequest, DestroyOptions, InstanceId, LogsOptions, Request, Response, StartOptions,
 };
@@ -73,6 +73,8 @@ enum InstanceCommands {
         verify_boot: bool,
         #[arg(long)]
         skip_adb_wait: bool,
+        #[arg(long)]
+        track: Option<String>,
     },
     /// Create and immediately start a new instance.
     CreateStart {
@@ -125,13 +127,14 @@ fn main() -> Result<()> {
                 timeout_secs,
                 verify_boot,
                 skip_adb_wait,
+                track,
             } => {
                 let options = StartOptions {
                     disable_webrtc,
                     timeout_secs,
                     verify_boot,
                     skip_adb_wait,
-                    track: None,  // Start command doesn't support track yet
+                    track,
                 };
                 send_request(&cli.socket, Request::StartInstance { id, options })?
             }
@@ -240,23 +243,58 @@ fn main() -> Result<()> {
 }
 
 fn send_request(socket: &PathBuf, request: Request) -> Result<Response> {
-    let mut stream =
-        UnixStream::connect(socket).map_err(|err| anyhow!("connect to {:?}: {}", socket, err))?;
+    let mut stream = UnixStream::connect(socket).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::ConnectionRefused
+            || err.kind() == std::io::ErrorKind::NotFound
+        {
+            anyhow!(
+                "Cannot connect to cfctl daemon at {:?}. Is the daemon running?",
+                socket
+            )
+        } else {
+            anyhow!("connect to {:?}: {}", socket, err)
+        }
+    })?;
+
     let payload = serde_json::to_vec(&request)?;
-    stream.write_all(&payload)?;
-    stream.write_all(b"\n")?;
-    stream.shutdown(Shutdown::Write)?;
+    stream
+        .write_all(&payload)
+        .context("failed to send request to daemon")?;
+    stream
+        .write_all(b"\n")
+        .context("failed to send newline to daemon")?;
+    stream
+        .shutdown(Shutdown::Write)
+        .context("failed to shutdown write side of connection")?;
 
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
-    reader
-        .read_line(&mut line)
-        .map_err(|err| anyhow!("read response: {}", err))?;
+    reader.read_line(&mut line).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::UnexpectedEof
+            || err.kind() == std::io::ErrorKind::ConnectionReset
+        {
+            anyhow!(
+                "Connection to daemon was interrupted while reading response. The daemon may have crashed or been restarted."
+            )
+        } else {
+            anyhow!("read response: {}", err)
+        }
+    })?;
+
     if line.trim().is_empty() {
-        return Err(anyhow!("empty response from daemon"));
+        return Err(anyhow!(
+            "Received empty response from daemon. This may indicate a protocol error."
+        ));
     }
-    let response: Response =
-        serde_json::from_str(&line).map_err(|err| anyhow!("decode response JSON: {}", err))?;
+
+    let response: Response = serde_json::from_str(&line).map_err(|err| {
+        anyhow!(
+            "Failed to decode daemon response as JSON: {}. Response was: {}",
+            err,
+            line.trim()
+        )
+    })?;
+
     Ok(response)
 }
 

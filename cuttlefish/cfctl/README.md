@@ -12,6 +12,9 @@ cfctl instance create-start --purpose ci --disable-webrtc --verify-boot --timeou
 # start an existing guest with the same guarantees
 cfctl instance start 12 --disable-webrtc --verify-boot --timeout-secs 180
 
+# start an existing guest using a specific track (uses cfenv)
+cfctl instance start 12 --track production
+
 # hold an instance to prevent it from being pruned
 cfctl instance hold 12
 
@@ -29,6 +32,7 @@ cfctl instance prune --all
 - `--skip-adb-wait` – skip waiting for ADB to become ready. The instance starts immediately without ADB verification. Cannot be used with `--verify-boot` (which requires ADB).
 - `--verify-boot` – after ADB connects, poll `VIRTUAL_DEVICE_BOOT_COMPLETED`; the command exits non-zero with structured JSON on timeout/guest exit/marker missing.
 - `--timeout-secs` – hard ceiling for `start`, `create-start`, `destroy`, `wait-adb`, and `logs`. Commands fail with `error.code` describing the reason when the limit is hit.
+- `--track` – specify which cuttlefish track to use when starting an instance. When provided, cfctl uses `cfenv` to launch the guest with the specified track's environment.
 
 ## Logs
 

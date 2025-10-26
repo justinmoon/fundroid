@@ -54,7 +54,7 @@ Ideas:
 **Result:** Added --track to cfctl instance start, improved error messages, created just heartbeat recipe with REMOTE_CFCTL support. Tested on Hetzner. Merged to master.
 ---
 
-### Experiment 5 – “Host tool instrumentation”
+### Experiment 5 – "Host tool instrumentation" ✅ COMPLETE
 **Goal:** Better diagnostics for future runs.
 Ideas:
 * Include a truncated copy of `cfctl-run.log` in `cfctl instance status` or add a `cfctl instance describe` command.
@@ -62,6 +62,8 @@ Ideas:
 
 **Acceptance criteria:** New command/flag or logging behavior with tests/docs updated.
 
+
+**Result:** Added `cfctl instance describe` with run log tail, automatic console snapshots on failure, improved CLI error messages. See `notes/experiment-5-host-tool-instrumentation.md`. Merged to master.
 ---
 
 ### Tips / reminders

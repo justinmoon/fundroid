@@ -4,7 +4,7 @@
 
 ## Implementation Steps
 
-### 1. Fix Console Visibility in Makefile
+### 1. Fix Console Visibility in Makefile ✅ COMPLETE
 **Problem:** Current cmdline has `console=ttynull` which discards all output.
 
 **Solution:** Strip existing console/earlycon parameters and add:
@@ -12,12 +12,19 @@
 - `earlycon=uart8250,io,0x3f8,115200`
 - `ignore_loglevel` (force all printk through)
 
-**Changes to Makefile:**
-- After extracting mkbootimg_args.txt
-- Parse original cmdline
-- Remove any `console=*` and `earlycon=*`
-- Append new console parameters
-- Pass modified cmdline to mkbootimg
+**Implementation (commit 8904245):**
+- Python-based parser extracts cmdline from mkbootimg_args.txt (macOS compatible)
+- Properly strips both single and double quotes using `chr(39)`
+- Removes existing console/earlycon parameters via sed
+- Appends new console parameters: `console=ttyS0 earlycon=uart8250,io,0x3f8,115200 ignore_loglevel`
+- Fallback includes all required flags: `printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig`
+- Added .gitignore entries for build artifacts and editor directories
+
+**Test Results:**
+- ✅ Builds successfully on macOS
+- ✅ Quotes properly stripped from cmdline
+- ✅ Instance boots with VIRTUAL_DEVICE_BOOT_COMPLETED marker visible
+- ✅ test-heartbeat.sh passes consistently
 
 ### 2. Implement Standalone PID1 Loop
 **Replace chainloader with:**
@@ -59,7 +66,7 @@
 
 - [x] Builds static binary
 - [x] Repacks with proper AVB signature
-- [ ] Console output visible (console=ttyS0)
+- [x] Console output visible (console=ttyS0) - **Experiment 1 Complete**
 - [ ] System stays up indefinitely (no reboot loop)
 - [ ] Heartbeat messages appear every 5 seconds
 - [ ] No Android framework running

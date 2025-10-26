@@ -1,0 +1,22 @@
+{
+  "x_res": 720,
+  "y_res": 1280,
+  "dpi": 320,
+  "memory_mb": 4096,
+  "ddr_mem_mb": 4915,
+  "enable_host_bluetooth": false,
+  "enable_host_nfc": false,
+  "enable_host_uwb": false,
+  "start_rootcanal": false,
+  "start_casimir": false,
+  "start_pica": false,
+  "start_netsim": false,
+  "rootcanal_instance_num": 0,
+  "casimir_instance_num": 0,
+  "pica_instance_num": 0,
+  "netsim": false,
+  "netsim_bt": false,
+  "netsim_uwb": false,
+  "netsim_instance_num": 0,
+  "netsim_connector_instance_num": 0
+}

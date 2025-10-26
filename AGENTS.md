@@ -8,7 +8,13 @@ Don't create or edit markdown files unless I ask you to.
 
 Take small small steps and test
 
-~/configs/hetzner is the VPS where our cuttlefish instances live. We use ~/configs/hetzner/cfctl to operate these cuttlefish instances. `ssh hetzner` to get on the machine. Android Open Source Project (`aosp`) source code is checkout out in homedir -- don't hesitate to search this when you have questions about how Android works.
+The Hetzner VPS runs our cuttlefish instances. All cuttlefish-related code is now consolidated in the `cuttlefish/` directory in this repo (packages, modules, cfctl CLI). To deploy changes to Hetzner:
+
+1. Push your branch: `git push origin your-branch`
+2. Update the flake input in `~/configs/flake.nix` to reference your branch
+3. Deploy: `cd ~/configs && just hetzner`
+
+You can `ssh hetzner` to access the machine. Android Open Source Project (`aosp`) source code is checked out in the homedir -- search this when you have questions about how Android works.
 
 ## Rebuilding Cuttlefish Host Tools (Hetzner)
 

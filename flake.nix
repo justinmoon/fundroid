@@ -10,9 +10,14 @@
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
+    cuttlefish.url = "path:./cuttlefish";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, android-nixpkgs }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, android-nixpkgs, cuttlefish }:
+    {
+      # Export cuttlefish NixOS modules
+      nixosModules = cuttlefish.nixosModules;
+    } //
     flake-utils.lib.eachSystem [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ] (system:
       let
         pkgs = import nixpkgs {
@@ -51,6 +56,11 @@
 
         androidSdkStorePath = "${androidSdkEnv}/share/android-sdk";
       in {
+        # Export cuttlefish packages (Linux only)
+        packages = if pkgs.stdenv.isLinux then {
+          inherit (cuttlefish.packages.${system}) cfctl;
+        } else {};
+        
         devShells.default = pkgs.mkShell {
           packages = [
             rust

@@ -73,6 +73,13 @@ struct Args {
     guest_primary_group: String,
     #[arg(
         long,
+        env = "CFCTL_GUEST_SUPPLEMENTARY_GROUPS",
+        default_value = "cvdnetwork,kvm",
+        value_delimiter = ','
+    )]
+    guest_supplementary_groups: Vec<String>,
+    #[arg(
+        long,
         env = "CFCTL_GUEST_CAPABILITIES",
         default_value = "net_admin",
         value_delimiter = ','
@@ -105,6 +112,7 @@ async fn main() -> Result<()> {
         disable_host_gpu: args.disable_host_gpu,
         guest_user: args.guest_user,
         guest_primary_group: args.guest_primary_group,
+        guest_supplementary_groups: args.guest_supplementary_groups,
         guest_capabilities: args.guest_capabilities,
     };
 

@@ -116,7 +116,10 @@ mod tests {
             cuttlefish_assembly_dir: root.join("cf_assembly"),
             cuttlefish_system_image_dir: root.join("images"),
             disable_host_gpu: true,
-            ..CfctlDaemonConfig::default()
+            guest_user: "testuser".to_string(),
+            guest_primary_group: "testgroup".to_string(),
+            guest_supplementary_groups: vec![],
+            guest_capabilities: vec![],
         }
     }
 
@@ -2025,51 +2028,46 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
-        // Use sudo to switch user with configured primary group before entering FHS
-        // This preserves the group through bubblewrap's namespace isolation
+        // Resolve user/group credentials
         let target_user = &self.config.guest_user;
         let primary_group = &self.config.guest_primary_group;
-        
-        // Resolve UIDs/GIDs for logging
         let uid = resolve_uid(target_user)?;
         let gid = resolve_gid(primary_group)?;
         
+        // Resolve supplementary groups to GIDs
+        let group_gids: Vec<u32> = self.config.guest_supplementary_groups
+            .iter()
+            .map(|g| resolve_gid(g))
+            .collect::<Result<Vec<_>>>()?;
+        
         info!(
             target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} caps={:?}",
-            target_user, uid, primary_group, gid, self.config.guest_capabilities
+            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} groups={:?} caps={:?}",
+            target_user, uid, primary_group, gid,
+            self.config.guest_supplementary_groups.iter().zip(&group_gids)
+                .map(|(n, g)| format!("{}:{}", n, g))
+                .collect::<Vec<_>>(),
+            self.config.guest_capabilities
         );
         
-        // Use sudo to switch to target user with primary group
-        // Preserve CUTTLEFISH_* environment variables that we set below
-        let preserve_vars = vec![
-            "CUTTLEFISH_INSTANCE",
-            "CUTTLEFISH_INSTANCE_NUM",
-            "CUTTLEFISH_ADB_TCP_PORT",
-            "CUTTLEFISH_DISABLE_HOST_GPU",
-            "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR",
-            "GFXSTREAM_HEADLESS",
-        ];
-        let mut cmd = Command::new("sudo");
+        // Use runuser to switch user with supplementary groups
+        // CAP_NET_ADMIN is granted by the FHS wrapper via bwrap --cap-add
+        let mut cmd = Command::new("runuser");
         cmd.arg("-u").arg(target_user)
            .arg("-g").arg(primary_group);
-        for var in &preserve_vars {
-            cmd.arg(format!("--preserve-env={}", var));
-        }
-        cmd.arg("--");
         
-        // Add setpriv to set ambient capabilities if any are configured
-        if !self.config.guest_capabilities.is_empty() {
-            let caps_arg = self.config.guest_capabilities
-                .iter()
-                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
-                .collect::<Vec<_>>()
-                .join(",");
-            cmd.arg("setpriv")
-               .arg("--ambient-caps")
-               .arg(&caps_arg)
-               .arg("--");
+        // Add supplementary groups
+        for group in &self.config.guest_supplementary_groups {
+            cmd.arg("-G").arg(group);
         }
+        
+        // Preserve CUTTLEFISH_* environment variables
+        for var in ["CUTTLEFISH_INSTANCE", "CUTTLEFISH_INSTANCE_NUM", "CUTTLEFISH_ADB_TCP_PORT",
+                    "CUTTLEFISH_DISABLE_HOST_GPU", "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR", "GFXSTREAM_HEADLESS"] {
+            cmd.arg("-w").arg(var);
+        }
+        
+        cmd.arg("--");
         
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {

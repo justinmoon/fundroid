@@ -20,6 +20,7 @@ pub struct CfctlDaemonConfig {
     pub disable_host_gpu: bool,
     pub guest_user: String,
     pub guest_primary_group: String,
+    pub guest_supplementary_groups: Vec<String>,
     pub guest_capabilities: Vec<String>,
 }
 
@@ -43,6 +44,7 @@ impl Default for CfctlDaemonConfig {
             disable_host_gpu: true,
             guest_user: "justin".to_string(),
             guest_primary_group: "cvdnetwork".to_string(),
+            guest_supplementary_groups: vec!["cvdnetwork".to_string(), "kvm".to_string()],
             guest_capabilities: vec!["net_admin".to_string()],
         }
     }

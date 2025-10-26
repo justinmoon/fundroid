@@ -59,10 +59,37 @@ int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    puts("VIRTUAL_DEVICE_BOOT_COMPLETED");
-    fprintf(stderr, "[cf-heartbeat] standalone PID1 running\n");
+    mkdir("/tmp", 0755);
+    int breadcrumb = open("/tmp/heartbeat-was-here", O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    int breadcrumb_errno = errno;
+    int breadcrumb_ok = 0;
+    
+    if (breadcrumb >= 0) {
+        dprintf(breadcrumb, "PID1 executed at %ld\n", (long)time(NULL));
+        dprintf(breadcrumb, "PID: %d\n", getpid());
+        if (fsync(breadcrumb) == 0) {
+            breadcrumb_ok = 1;
+        }
+        close(breadcrumb);
+    }
     
     int k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
+    if (k >= 0) {
+        dprintf(k, "<6>[heartbeat-init] === EXPERIMENT-3 BREADCRUMB === PID1 starting at %ld\n", (long)time(NULL));
+        if (breadcrumb_ok) {
+            dprintf(k, "<6>[heartbeat-init] Breadcrumb file created and synced successfully: /tmp/heartbeat-was-here\n");
+        } else if (breadcrumb >= 0) {
+            dprintf(k, "<3>[heartbeat-init] ERROR: Breadcrumb file write or sync failed\n");
+        } else {
+            dprintf(k, "<3>[heartbeat-init] ERROR: Failed to create breadcrumb file /tmp/heartbeat-was-here (errno=%d)\n", breadcrumb_errno);
+        }
+        close(k);
+    }
+
+    puts("VIRTUAL_DEVICE_BOOT_COMPLETED");
+    fprintf(stderr, "[cf-heartbeat] standalone PID1 running (experiment-3 instrumented)\n");
+    
+    k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
     if (k >= 0) {
         dprintf(k, "<6>[heartbeat] init started %ld\n", (long)time(NULL));
         close(k);

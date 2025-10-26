@@ -36,6 +36,7 @@ logs/
 # Build artifacts
 heartbeat-init/.build/
 heartbeat-init/heartbeat_init
+heartbeat-init/heartbeat_init_minimal
 heartbeat-init/init_boot.img
 init_boot.img
 

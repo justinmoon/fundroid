@@ -21,22 +21,29 @@ Modified `heartbeat-init/heartbeat_init.c` to include:
 ```c
 mkdir("/tmp", 0755);
 int breadcrumb = open("/tmp/heartbeat-was-here", O_WRONLY|O_CREAT|O_TRUNC, 0644);
-
-int k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
-if (k >= 0) {
-    dprintf(k, "<6>[heartbeat-init] === EXPERIMENT-3 BREADCRUMB === PID1 starting at %ld\n", (long)time(NULL));
-    if (breadcrumb >= 0) {
-        dprintf(k, "<6>[heartbeat-init] Breadcrumb file created successfully: /tmp/heartbeat-was-here\n");
-    } else {
-        dprintf(k, "<3>[heartbeat-init] ERROR: Failed to create breadcrumb file /tmp/heartbeat-was-here (errno=%d)\n", errno);
-    }
-    close(k);
-}
+int breadcrumb_errno = errno;
+int breadcrumb_ok = 0;
 
 if (breadcrumb >= 0) {
     dprintf(breadcrumb, "PID1 executed at %ld\n", (long)time(NULL));
     dprintf(breadcrumb, "PID: %d\n", getpid());
+    if (fsync(breadcrumb) == 0) {
+        breadcrumb_ok = 1;
+    }
     close(breadcrumb);
+}
+
+int k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
+if (k >= 0) {
+    dprintf(k, "<6>[heartbeat-init] === EXPERIMENT-3 BREADCRUMB === PID1 starting at %ld\n", (long)time(NULL));
+    if (breadcrumb_ok) {
+        dprintf(k, "<6>[heartbeat-init] Breadcrumb file created and synced successfully: /tmp/heartbeat-was-here\n");
+    } else if (breadcrumb >= 0) {
+        dprintf(k, "<3>[heartbeat-init] ERROR: Breadcrumb file write or sync failed\n");
+    } else {
+        dprintf(k, "<3>[heartbeat-init] ERROR: Failed to create breadcrumb file /tmp/heartbeat-was-here (errno=%d)\n", breadcrumb_errno);
+    }
+    close(k);
 }
 ```
 
@@ -90,11 +97,12 @@ But **never reached** the actual VM boot where our instrumented init would execu
 
 **ISSUE:** The initial instrumentation had a false-positive bug. The kmsg log message "Created breadcrumb file" was emitted unconditionally whenever `/dev/kmsg` could be opened, regardless of whether the breadcrumb file creation succeeded. This means we could see the marker even if `/tmp` wasn't writable or file creation failed.
 
-**FIX APPLIED:** 
-- Moved breadcrumb file check logic before kmsg logging
-- Conditional kmsg messages: success only if `breadcrumb >= 0`
-- Added explicit error message with errno when breadcrumb creation fails
-- Changed log level to `<3>` (error) for failures
+**FIXES APPLIED:** 
+1. Moved breadcrumb file write BEFORE kmsg logging (verify success before claiming it)
+2. Save errno immediately after open() to avoid clobbering
+3. Add fsync() to ensure data hits disk before claiming success
+4. Three-state error handling: file creation failed, write/sync failed, or full success
+5. Changed log level to `<3>` (error) for failures
 
 This bug means the current test results are **unreliable** until we re-run with the fixed instrumentation.
 

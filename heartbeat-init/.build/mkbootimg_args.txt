@@ -1,1 +1,0 @@
---header_version 4 --os_version 16.0.0 --os_patch_level 2025-06 --kernel ./kernel --ramdisk ./ramdisk --cmdline ''

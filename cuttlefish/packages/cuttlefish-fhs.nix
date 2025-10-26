@@ -16,11 +16,11 @@ let
     exec "$@"
   '';
 
-  # Base FHS environment without CAP modifications
-  baseFHS = pkgs.buildFHSEnvBubblewrap {
-    name = "${fhsName}-unwrapped";
+in
+pkgs.buildFHSEnvBubblewrap {
+  name = fhsName;
 
-    targetPkgs = pkgs': with pkgs'; [
+  targetPkgs = pkgs': with pkgs'; [
     coreutils
     findutils
     procps
@@ -78,21 +78,5 @@ EOF
     chmod +x $out/usr/lib64/cuttlefish-common/bin/capability_query.py
   '';
 
-    runScript = entrypoint;
-  };
-
-in
-# Wrap the FHS script to add --cap-add cap_net_admin to bwrap invocations
-pkgs.runCommand fhsName {} ''
-  mkdir -p $out/bin
-  
-  # Copy the FHS script with the correct name
-  cp ${baseFHS}/bin/${fhsName}-unwrapped $out/bin/${fhsName}
-  chmod +w $out/bin/${fhsName}
-  
-  # Add --cap-add cap_net_admin after every /bin/bwrap invocation
-  sed -i 's|/bin/bwrap |/bin/bwrap --cap-add cap_net_admin |g' $out/bin/${fhsName}
-  
-  # Make it executable
-  chmod +x $out/bin/${fhsName}
-''
+  runScript = entrypoint;
+}

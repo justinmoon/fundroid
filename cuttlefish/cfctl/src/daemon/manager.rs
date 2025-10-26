@@ -2042,16 +2042,15 @@ impl InstanceManager {
         
         info!(
             target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} groups={:?} caps={:?}",
+            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} groups={:?}",
             target_user, uid, primary_group, gid,
             self.config.guest_supplementary_groups.iter().zip(&group_gids)
                 .map(|(n, g)| format!("{}:{}", n, g))
-                .collect::<Vec<_>>(),
-            self.config.guest_capabilities
+                .collect::<Vec<_>>()
         );
         
         // Use runuser to switch user with supplementary groups
-        // CAP_NET_ADMIN is granted by the FHS wrapper via bwrap --cap-add
+        // No manual capability management - bubblewrap handles caps internally when invoked by root
         let mut cmd = Command::new("runuser");
         cmd.arg("-u").arg(target_user)
            .arg("-g").arg(primary_group);

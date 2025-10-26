@@ -2028,53 +2028,19 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
-        // Resolve user/group credentials
-        let target_user = &self.config.guest_user;
-        let primary_group = &self.config.guest_primary_group;
-        let uid = resolve_uid(target_user)?;
-        let gid = resolve_gid(primary_group)?;
-        
-        // Resolve supplementary groups to GIDs
-        let group_gids: Vec<u32> = self.config.guest_supplementary_groups
-            .iter()
-            .map(|g| resolve_gid(g))
-            .collect::<Result<Vec<_>>>()?;
-        
-        info!(
-            target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} groups={:?}",
-            target_user, uid, primary_group, gid,
-            self.config.guest_supplementary_groups.iter().zip(&group_gids)
-                .map(|(n, g)| format!("{}:{}", n, g))
-                .collect::<Vec<_>>()
-        );
-        
-        // Use runuser to switch user with supplementary groups
-        // No manual capability management - bubblewrap handles caps internally when invoked by root
-        let mut cmd = Command::new("runuser");
-        cmd.arg("-u").arg(target_user)
-           .arg("-g").arg(primary_group);
-        
-        // Add supplementary groups
-        for group in &self.config.guest_supplementary_groups {
-            cmd.arg("-G").arg(group);
-        }
-        
-        // Preserve CUTTLEFISH_* environment variables
-        for var in ["CUTTLEFISH_INSTANCE", "CUTTLEFISH_INSTANCE_NUM", "CUTTLEFISH_ADB_TCP_PORT",
-                    "CUTTLEFISH_DISABLE_HOST_GPU", "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR", "GFXSTREAM_HEADLESS"] {
-            cmd.arg("-w").arg(var);
-        }
-        
-        cmd.arg("--");
-        
-        // Use cfenv if track specified, otherwise direct FHS wrapper
-        if let Some(t) = track {
+        // Run FHS wrapper directly as root (no user switching)
+        // This matches the working configuration from instance 63 (Oct 26 00:56 UTC)
+        // Running as root allows QEMU to have CAP_NET_ADMIN for TAP device configuration
+        let mut cmd = if let Some(t) = track {
             info!(target: "cfctl", "spawn_guest_process: using track '{}'", t);
-            cmd.arg("cfenv").arg("-t").arg(t).arg("--");
+            let mut c = Command::new("cfenv");
+            c.arg("-t").arg(t).arg("--");
+            c
         } else {
             info!(target: "cfctl", "spawn_guest_process: using default FHS wrapper");
-            cmd.arg(&self.config.cuttlefish_fhs).arg("--");
+            let mut c = Command::new(&self.config.cuttlefish_fhs);
+            c.arg("--");
+            c
         };
         cmd
             .arg("launch_cvd")

@@ -101,6 +101,12 @@ enum InstanceCommands {
     },
     /// Show the instance status.
     Status { id: InstanceId },
+    /// Describe the instance with detailed diagnostics.
+    Describe {
+        id: InstanceId,
+        #[arg(long, default_value_t = 50)]
+        run_log_lines: usize,
+    },
     /// List all known instances.
     List,
     /// Trigger expired instance pruning.
@@ -173,6 +179,13 @@ fn main() -> Result<()> {
                 response
             }
             InstanceCommands::Status { id } => send_request(&cli.socket, Request::Status { id })?,
+            InstanceCommands::Describe { id, run_log_lines } => send_request(
+                &cli.socket,
+                Request::Describe {
+                    id,
+                    run_log_lines: Some(run_log_lines),
+                },
+            )?,
             InstanceCommands::List => send_request(&cli.socket, Request::ListInstances)?,
             InstanceCommands::Prune { max_age_secs, all } => {
                 if all {

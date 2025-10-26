@@ -43,6 +43,10 @@ pub struct InstanceActionResponse {
     pub verification: Option<BootVerificationResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup: Option<CleanupSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_log_tail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub console_snapshot_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,6 +162,11 @@ pub enum Request {
     },
     Status {
         id: InstanceId,
+    },
+    Describe {
+        id: InstanceId,
+        #[serde(default)]
+        run_log_lines: Option<usize>,
     },
     ListInstances,
     PruneExpired {

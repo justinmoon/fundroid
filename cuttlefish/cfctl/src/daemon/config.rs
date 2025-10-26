@@ -18,6 +18,9 @@ pub struct CfctlDaemonConfig {
     pub cuttlefish_assembly_dir: PathBuf,
     pub cuttlefish_system_image_dir: PathBuf,
     pub disable_host_gpu: bool,
+    pub guest_user: String,
+    pub guest_primary_group: String,
+    pub guest_capabilities: Vec<String>,
 }
 
 impl Default for CfctlDaemonConfig {
@@ -38,6 +41,9 @@ impl Default for CfctlDaemonConfig {
             cuttlefish_assembly_dir: PathBuf::from("/var/lib/cuttlefish/assembly"),
             cuttlefish_system_image_dir: PathBuf::from("/var/lib/cuttlefish/images"),
             disable_host_gpu: true,
+            guest_user: "justin".to_string(),
+            guest_primary_group: "cvdnetwork".to_string(),
+            guest_capabilities: vec!["net_admin".to_string()],
         }
     }
 }

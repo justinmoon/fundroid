@@ -67,6 +67,17 @@ struct Args {
     cuttlefish_system_image_dir: PathBuf,
     #[arg(long, env = "CFCTL_DISABLE_HOST_GPU", default_value_t = true)]
     disable_host_gpu: bool,
+    #[arg(long, env = "CFCTL_GUEST_USER", default_value = "justin")]
+    guest_user: String,
+    #[arg(long, env = "CFCTL_GUEST_PRIMARY_GROUP", default_value = "cvdnetwork")]
+    guest_primary_group: String,
+    #[arg(
+        long,
+        env = "CFCTL_GUEST_CAPABILITIES",
+        default_value = "net_admin",
+        value_delimiter = ','
+    )]
+    guest_capabilities: Vec<String>,
 }
 
 #[tokio::main]
@@ -92,6 +103,9 @@ async fn main() -> Result<()> {
         cuttlefish_assembly_dir: args.cuttlefish_assembly_dir,
         cuttlefish_system_image_dir: args.cuttlefish_system_image_dir,
         disable_host_gpu: args.disable_host_gpu,
+        guest_user: args.guest_user,
+        guest_primary_group: args.guest_primary_group,
+        guest_capabilities: args.guest_capabilities,
     };
 
     let daemon = CfctlDaemon::new(config);

@@ -1977,7 +1977,6 @@ impl InstanceManager {
         let mut cmd = Command::new("setpriv");
         cmd.arg("--reuid").arg(uid.to_string())
            .arg("--regid").arg(gid.to_string())
-           .arg("--clear-groups")
            .arg("--groups").arg(group_gids.iter().map(|g| g.to_string()).collect::<Vec<_>>().join(","));
         
         // Add ambient capabilities if any

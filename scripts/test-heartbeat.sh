@@ -7,6 +7,7 @@ HEARTBEAT_DIR="$REPO_ROOT/heartbeat-init"
 CUTTLEFISH_SCRIPT="$SCRIPT_DIR/cuttlefish_instance.sh"
 
 REMOTE_HOST="${CUTTLEFISH_REMOTE_HOST:-hetzner}"
+REMOTE_CFCTL="${REMOTE_CFCTL:-cfctl}"
 INIT_BOOT_SRC="${INIT_BOOT_SRC:-}"
 TIMEOUT_BOOT="${TIMEOUT_BOOT:-180}"
 TIMEOUT_DESTROY="${TIMEOUT_DESTROY:-60}"
@@ -25,7 +26,7 @@ cleanup_instance() {
     local instance="$1"
     if [[ -n "$instance" ]]; then
         log "Cleaning up instance $instance"
-        ssh "$REMOTE_HOST" "cfctl instance destroy $instance --timeout-secs ${TIMEOUT_DESTROY}" || true
+        ssh "$REMOTE_HOST" "$REMOTE_CFCTL instance destroy $instance --timeout-secs ${TIMEOUT_DESTROY}" || true
     fi
 }
 
@@ -63,7 +64,7 @@ main() {
 
     log "Creating Cuttlefish instance..."
     local instance_name
-    instance_name=$(ssh "$REMOTE_HOST" "cfctl instance create --purpose heartbeat" | grep -oE '[0-9]+' | head -1)
+    instance_name=$(ssh "$REMOTE_HOST" "$REMOTE_CFCTL instance create --purpose heartbeat" | grep -oE '[0-9]+' | head -1)
     if [[ -z "$instance_name" ]]; then
         die "Failed to create Cuttlefish instance"
     fi
@@ -72,17 +73,17 @@ main() {
     trap "cleanup_instance '$instance_name'" EXIT
 
     log "Deploying heartbeat init_boot.img..."
-    ssh "$REMOTE_HOST" "cfctl deploy --init /tmp/heartbeat-init_boot.img $instance_name" || die "Failed to deploy init_boot.img"
+    ssh "$REMOTE_HOST" "$REMOTE_CFCTL deploy --init /tmp/heartbeat-init_boot.img $instance_name" || die "Failed to deploy init_boot.img"
 
     log "Starting Cuttlefish instance (timeout: ${TIMEOUT_BOOT}s)..."
-    ssh "$REMOTE_HOST" "cfctl instance start $instance_name --timeout-secs ${TIMEOUT_BOOT}" || die "Failed to start Cuttlefish instance"
+    ssh "$REMOTE_HOST" "$REMOTE_CFCTL instance start $instance_name --timeout-secs ${TIMEOUT_BOOT}" || die "Failed to start Cuttlefish instance"
 
     log "Waiting for boot completion marker (timeout: ${HEARTBEAT_WAIT}s)..."
     local deadline=$(($(date +%s) + HEARTBEAT_WAIT))
     local found=false
 
     while (( $(date +%s) < deadline )); do
-        if ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 200" 2>/dev/null | grep -q "VIRTUAL_DEVICE_BOOT_COMPLETED"; then
+        if ssh "$REMOTE_HOST" "$REMOTE_CFCTL logs $instance_name --stdout --lines 200" 2>/dev/null | grep -q "VIRTUAL_DEVICE_BOOT_COMPLETED"; then
             log "✓ Found VIRTUAL_DEVICE_BOOT_COMPLETED - system booted successfully"
             found=true
             break
@@ -92,16 +93,16 @@ main() {
 
     if ! $found; then
         log "Console log contents:"
-        ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 200" 2>/dev/null || true
+        ssh "$REMOTE_HOST" "$REMOTE_CFCTL logs $instance_name --stdout --lines 200" 2>/dev/null || true
         die "Boot completion marker not found within ${HEARTBEAT_WAIT}s"
     fi
 
     log "Displaying recent console output:"
-    ssh "$REMOTE_HOST" "cfctl logs $instance_name --stdout --lines 30" 2>/dev/null || true
+    ssh "$REMOTE_HOST" "$REMOTE_CFCTL logs $instance_name --stdout --lines 30" 2>/dev/null || true
 
     log "✓ SUCCESS: Heartbeat PID1 is running correctly"
     log "Stopping instance..."
-    ssh "$REMOTE_HOST" "cfctl instance destroy $instance_name --timeout-secs ${TIMEOUT_DESTROY}" || true
+    ssh "$REMOTE_HOST" "$REMOTE_CFCTL instance destroy $instance_name --timeout-secs ${TIMEOUT_DESTROY}" || true
 
     log "Test completed successfully!"
 }

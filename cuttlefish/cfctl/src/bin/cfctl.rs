@@ -73,6 +73,8 @@ enum InstanceCommands {
         verify_boot: bool,
         #[arg(long)]
         skip_adb_wait: bool,
+        #[arg(long)]
+        track: Option<String>,
     },
     /// Create and immediately start a new instance.
     CreateStart {
@@ -131,13 +133,14 @@ fn main() -> Result<()> {
                 timeout_secs,
                 verify_boot,
                 skip_adb_wait,
+                track,
             } => {
                 let options = StartOptions {
                     disable_webrtc,
                     timeout_secs,
                     verify_boot,
                     skip_adb_wait,
-                    track: None,  // Start command doesn't support track yet
+                    track,
                 };
                 send_request(&cli.socket, Request::StartInstance { id, options })?
             }

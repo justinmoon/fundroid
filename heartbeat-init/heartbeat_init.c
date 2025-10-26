@@ -59,10 +59,25 @@ int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    puts("VIRTUAL_DEVICE_BOOT_COMPLETED");
-    fprintf(stderr, "[cf-heartbeat] standalone PID1 running\n");
-    
+    mkdir("/tmp", 0755);
+    int breadcrumb = open("/tmp/heartbeat-was-here", O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    if (breadcrumb >= 0) {
+        dprintf(breadcrumb, "PID1 executed at %ld\n", (long)time(NULL));
+        dprintf(breadcrumb, "PID: %d\n", getpid());
+        close(breadcrumb);
+    }
+
     int k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
+    if (k >= 0) {
+        dprintf(k, "<6>[heartbeat-init] === EXPERIMENT-3 BREADCRUMB === PID1 starting at %ld\n", (long)time(NULL));
+        dprintf(k, "<6>[heartbeat-init] Created breadcrumb file: /tmp/heartbeat-was-here\n");
+        close(k);
+    }
+
+    puts("VIRTUAL_DEVICE_BOOT_COMPLETED");
+    fprintf(stderr, "[cf-heartbeat] standalone PID1 running (experiment-3 instrumented)\n");
+    
+    k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
     if (k >= 0) {
         dprintf(k, "<6>[heartbeat] init started %ld\n", (long)time(NULL));
         close(k);

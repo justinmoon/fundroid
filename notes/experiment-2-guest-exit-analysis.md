@@ -233,8 +233,38 @@ ssh hetzner "cd /var/lib/cuttlefish/instances && \
 
 ✅ **Notes outlining the failure cause with log snippets** - Documented above  
 ✅ **Identified root cause** - FHS wrapper drops cvdnetwork group  
-✅ **Suggested mitigation** - Use sudo/sg to preserve group  
-⚠️ **Tested mitigation** - Partially (fixes primary issue, reveals secondary TAP device issue)  
+✅ **Suggested mitigation** - Use sudo -g to preserve group as primary  
+✅ **Tested mitigation** - Successfully deployed and verified on hetzner  
+
+## Test Results (Instance 95)
+
+**Date:** 2025-10-26 16:55 UTC  
+**Result:** ✅ PRIMARY FIX SUCCESSFUL
+
+### Before Fix
+- Instance failed after ~11 seconds
+- Error: `Failed to set group for path: /var/lib/cuttlefish/instances/XX/environments, cvdnetwork, Invalid argument`
+- State transitioned to `failed` immediately
+
+### After Fix
+- Instance passed setup phase successfully
+- No "Failed to set group" errors in cfctl-run.log
+- Instance state: `running` (sustained for 30+ seconds)
+- Journal shows: `spawn_guest_process: resolved credentials uid=justin:1000 gid=cvdnetwork:983`
+
+### Secondary Issue Revealed
+As expected, after fixing the primary group permission issue, we now hit the TAP device permission error:
+```
+qemu-system-x86_64: -netdev tap,id=hostnet0,ifname=cvd-mtap-01,script=no,downscript=no: 
+could not configure /dev/net/tun (cvd-mtap-01): Operation not permitted
+```
+
+This requires either:
+1. Adding CAP_NET_ADMIN to qemu-system-x86_64 binary
+2. Pre-creating TAP devices with proper permissions
+3. Running with additional capabilities
+
+**Status:** The primary issue from Experiment #2 is RESOLVED. The TAP device issue is a separate problem for future work.
 
 ---
 

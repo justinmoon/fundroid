@@ -1951,10 +1951,10 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
-        // Use sudo to switch user with cvdnetwork as primary group before entering FHS
+        // Use sudo to switch user with configured primary group before entering FHS
         // This preserves the group through bubblewrap's namespace isolation
-        let target_user = "justin";
-        let primary_group = "cvdnetwork";  // Must be primary for chgrp operations to succeed
+        let target_user = &self.config.guest_user;
+        let primary_group = &self.config.guest_primary_group;
         
         // Resolve UIDs/GIDs for logging
         let uid = resolve_uid(target_user)?;
@@ -1962,15 +1962,30 @@ impl InstanceManager {
         
         info!(
             target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{}",
-            target_user, uid, primary_group, gid
+            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} caps={:?}",
+            target_user, uid, primary_group, gid, self.config.guest_capabilities
         );
         
-        // Use sudo to switch to target user with cvdnetwork as primary group
+        // Use sudo to switch to target user with primary group
+        // Preserve CUTTLEFISH_* environment variables that we set below
         let mut cmd = Command::new("sudo");
         cmd.arg("-u").arg(target_user)
            .arg("-g").arg(primary_group)
+           .arg("--preserve-env=CUTTLEFISH_INSTANCE,CUTTLEFISH_INSTANCE_NUM,CUTTLEFISH_ADB_TCP_PORT,CUTTLEFISH_DISABLE_HOST_GPU,GFXSTREAM_DISABLE_GRAPHICS_DETECTOR,GFXSTREAM_HEADLESS")
            .arg("--");
+        
+        // Add setpriv to set ambient capabilities if any are configured
+        if !self.config.guest_capabilities.is_empty() {
+            let caps_arg = self.config.guest_capabilities
+                .iter()
+                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
+                .collect::<Vec<_>>()
+                .join(",");
+            cmd.arg("setpriv")
+               .arg("--ambient-caps")
+               .arg(&caps_arg)
+               .arg("--");
+        }
         
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {

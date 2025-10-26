@@ -1968,11 +1968,21 @@ impl InstanceManager {
         
         // Use sudo to switch to target user with primary group
         // Preserve CUTTLEFISH_* environment variables that we set below
+        let preserve_vars = vec![
+            "CUTTLEFISH_INSTANCE",
+            "CUTTLEFISH_INSTANCE_NUM",
+            "CUTTLEFISH_ADB_TCP_PORT",
+            "CUTTLEFISH_DISABLE_HOST_GPU",
+            "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR",
+            "GFXSTREAM_HEADLESS",
+        ];
         let mut cmd = Command::new("sudo");
         cmd.arg("-u").arg(target_user)
-           .arg("-g").arg(primary_group)
-           .arg("--preserve-env=CUTTLEFISH_INSTANCE,CUTTLEFISH_INSTANCE_NUM,CUTTLEFISH_ADB_TCP_PORT,CUTTLEFISH_DISABLE_HOST_GPU,GFXSTREAM_DISABLE_GRAPHICS_DETECTOR,GFXSTREAM_HEADLESS")
-           .arg("--");
+           .arg("-g").arg(primary_group);
+        for var in &preserve_vars {
+            cmd.arg(format!("--preserve-env={}", var));
+        }
+        cmd.arg("--");
         
         // Add setpriv to set ambient capabilities if any are configured
         if !self.config.guest_capabilities.is_empty() {

@@ -29,12 +29,15 @@ Let’s split up and explore several threads in parallel. Below are five experim
 
 ---
 
-### Experiment 3 – “Minimal init instrumentation”
+### Experiment 3 – “Minimal init instrumentation” ✅ COMPLETE
 **Goal:** Confirm our PID 1 executes before the guest dies.
 1. Add a small breadcrumb to `heartbeat_init.c` (e.g., create `/tmp/heartbeat-was-here` or write to `/dev/kmsg`).
 2. Repack/deploy/hold an instance, then check the preserved filesystem/logs.
 
 **Acceptance criteria:** Evidence one way or another that the binary ran (or crashed). Include the indicator you used and how you verified it.
+
+
+**Result:** PID1 never executes. Instance fails during host-side graphics initialization (Vulkan checks terminated by signal 6) before guest VM boots. Added reliable breadcrumb instrumentation (`/tmp/heartbeat-was-here` + kmsg markers with errno preservation and fsync verification) for future testing. See `notes/experiment-3-findings.md`.
 
 ---
 

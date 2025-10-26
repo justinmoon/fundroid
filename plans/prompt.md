@@ -66,6 +66,36 @@ Ideas:
 **Result:** Added `cfctl instance describe` with run log tail, automatic console snapshots on failure, improved CLI error messages. See `notes/experiment-5-host-tool-instrumentation.md`. Merged to master.
 ---
 
+### Experiment 6 – “Stock baseline sanity check”
+**Goal:** Prove the current Hetzner deployment can boot a plain cuttlefish guest before touching PID 1 again.
+1. Build/Pull nothing new; use whatever’s already deployed.
+2. `cfctl instance create-start --purpose baseline --verify-boot true` and let it run to completion.
+3. If it fails, capture `cfctl-run.log`, console snapshot, and daemon journal immediately.
+
+**Acceptance criteria:** Instance reaches `running` with boot marker + adb ready, logs stashed under `notes/` for reference. Abort downstream experiments until this passes.
+
+---
+
+### Experiment 7 – “Short-circuit graphics detector”
+**Goal:** Stop `gfxstream_graphics_detector` from crashing host-side setup so our guest can actually boot.
+1. Reproduce crash: `/run/current-system/sw/bin/cuttlefish-fhs -- /opt/cuttlefish/bin/x86_64-linux-gnu/gfxstream_graphics_detector`.
+2. Draft a patch in `device/google/cuttlefish/host/commands/assemble_cvd/graphics_flags.cc` that honors `GFXSTREAM_DISABLE_GRAPHICS_DETECTOR=1` (or similar) by skipping the subprocess entirely.
+3. Rebuild host tools per `docs/AOSP_BUILD.md`, redeploy via `just hetzner`, then spin a smoke instance (`cfctl instance create-start --purpose graphics-detector-test --verify-boot true`).
+
+**Acceptance criteria:** Detector bypass confirmed in logs, smoke instance boots, write-up committed under `notes/`.
+
+---
+
+### Experiment 8 – “Standalone heartbeat retry”
+**Goal:** Re-run the breadcrumbed PID 1 without delegating to `init.stock` once host-side blockers are cleared.
+1. Repack `init_boot.img` with `heartbeat-init/heartbeat_init.c` (no wrapper fallback).
+2. Deploy to a held instance, start with graphics detector disabled, and stream console output.
+3. Collect `/tmp/heartbeat-was-here`, `/dev/kmsg` markers, and console snapshot from the preserved filesystem.
+
+**Acceptance criteria:** Evidence that PID 1 executes (or detailed failure logs) written up in `notes/` and cross-linked here.
+
+---
+
 ### Tips / reminders
 * Repo root: `~/code/boom/worktrees/android-init-examples-codex`.
 * Remote host: `ssh hetzner`, daemon socket `/run/cfctl.sock`.

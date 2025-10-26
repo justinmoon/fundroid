@@ -16,22 +16,27 @@ Modified `heartbeat-init/heartbeat_init.c` to include:
 2. **Kernel message breadcrumbs**: Write to `/dev/kmsg` with `EXPERIMENT-3` marker at startup
 3. **Console marker**: Updated stderr output to indicate "experiment-3 instrumented" binary
 
-### Code Changes
+### Code Changes (Fixed Implementation)
 
 ```c
 mkdir("/tmp", 0755);
 int breadcrumb = open("/tmp/heartbeat-was-here", O_WRONLY|O_CREAT|O_TRUNC, 0644);
-if (breadcrumb >= 0) {
-    dprintf(breadcrumb, "PID1 executed at %ld\n", (long)time(NULL));
-    dprintf(breadcrumb, "PID: %d\n", getpid());
-    close(breadcrumb);
-}
 
 int k = open("/dev/kmsg", O_WRONLY|O_CLOEXEC);
 if (k >= 0) {
     dprintf(k, "<6>[heartbeat-init] === EXPERIMENT-3 BREADCRUMB === PID1 starting at %ld\n", (long)time(NULL));
-    dprintf(k, "<6>[heartbeat-init] Created breadcrumb file: /tmp/heartbeat-was-here\n");
+    if (breadcrumb >= 0) {
+        dprintf(k, "<6>[heartbeat-init] Breadcrumb file created successfully: /tmp/heartbeat-was-here\n");
+    } else {
+        dprintf(k, "<3>[heartbeat-init] ERROR: Failed to create breadcrumb file /tmp/heartbeat-was-here (errno=%d)\n", errno);
+    }
     close(k);
+}
+
+if (breadcrumb >= 0) {
+    dprintf(breadcrumb, "PID1 executed at %ld\n", (long)time(NULL));
+    dprintf(breadcrumb, "PID: %d\n", getpid());
+    close(breadcrumb);
 }
 ```
 

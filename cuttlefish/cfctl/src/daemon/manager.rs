@@ -28,6 +28,34 @@ use super::util::{epoch_secs, run_command_allow_failure, run_command_capture, ta
 const ID_ALLOC_FILE: &str = "next_id";
 const METADATA_FILE: &str = "metadata.json";
 
+/// Resolve a username to a UID using libc getpwnam
+fn resolve_uid(username: &str) -> Result<u32> {
+    use std::ffi::CString;
+    let cname = CString::new(username)
+        .with_context(|| format!("invalid username: {}", username))?;
+    unsafe {
+        let pwd = libc::getpwnam(cname.as_ptr());
+        if pwd.is_null() {
+            anyhow::bail!("user '{}' not found", username);
+        }
+        Ok((*pwd).pw_uid)
+    }
+}
+
+/// Resolve a group name to a GID using libc getgrnam
+fn resolve_gid(groupname: &str) -> Result<u32> {
+    use std::ffi::CString;
+    let cname = CString::new(groupname)
+        .with_context(|| format!("invalid group name: {}", groupname))?;
+    unsafe {
+        let grp = libc::getgrnam(cname.as_ptr());
+        if grp.is_null() {
+            anyhow::bail!("group '{}' not found", groupname);
+        }
+        Ok((*grp).gr_gid)
+    }
+}
+
 struct InstancePaths {
     root: PathBuf,
     artifacts: PathBuf,
@@ -1923,17 +1951,49 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
+        // Resolve required groups and capabilities
+        let target_user = "justin";
+        let primary_group = "users";
+        let required_groups = vec!["cvdnetwork", "kvm"];
+        let capabilities = vec!["cap_net_admin"];
+        
+        // Resolve UIDs/GIDs
+        let uid = resolve_uid(target_user)?;
+        let gid = resolve_gid(primary_group)?;
+        let group_gids: Vec<u32> = required_groups
+            .iter()
+            .map(|g| resolve_gid(g))
+            .collect::<Result<Vec<_>>>()?;
+        
+        info!(
+            target: "cfctl",
+            "spawn_guest_process: resolved credentials uid={} gid={} groups={:?} caps={:?}",
+            uid, gid, 
+            required_groups.iter().zip(&group_gids).map(|(n, g)| format!("{}:{}", n, g)).collect::<Vec<_>>(),
+            capabilities
+        );
+        
+        // Build setpriv command to preserve groups and capabilities
+        let mut cmd = Command::new("setpriv");
+        cmd.arg("--reuid").arg(uid.to_string())
+           .arg("--regid").arg(gid.to_string())
+           .arg("--clear-groups")
+           .arg("--groups").arg(group_gids.iter().map(|g| g.to_string()).collect::<Vec<_>>().join(","));
+        
+        // Add ambient capabilities if any
+        if !capabilities.is_empty() {
+            cmd.arg("--ambient-caps").arg(capabilities.join(","));
+        }
+        
+        cmd.arg("--");
+        
         // Use cfenv if track specified, otherwise direct FHS wrapper
-        let mut cmd = if let Some(t) = track {
+        if let Some(t) = track {
             info!(target: "cfctl", "spawn_guest_process: using track '{}'", t);
-            let mut c = Command::new("cfenv");
-            c.arg("-t").arg(t).arg("--");
-            c
+            cmd.arg("cfenv").arg("-t").arg(t).arg("--");
         } else {
             info!(target: "cfctl", "spawn_guest_process: using default FHS wrapper");
-            let mut c = Command::new(&self.config.cuttlefish_fhs);
-            c.arg("--");
-            c
+            cmd.arg(&self.config.cuttlefish_fhs).arg("--");
         };
         cmd
             .arg("launch_cvd")

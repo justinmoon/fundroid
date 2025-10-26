@@ -1951,40 +1951,26 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
-        // Resolve required groups and capabilities
+        // Use sudo to switch user with cvdnetwork as primary group before entering FHS
+        // This preserves the group through bubblewrap's namespace isolation
         let target_user = "justin";
-        let primary_group = "users";
-        let required_groups = vec!["cvdnetwork", "kvm"];
-        let capabilities = vec!["+net_admin"];
+        let primary_group = "cvdnetwork";  // Must be primary for chgrp operations to succeed
         
-        // Resolve UIDs/GIDs
+        // Resolve UIDs/GIDs for logging
         let uid = resolve_uid(target_user)?;
         let gid = resolve_gid(primary_group)?;
-        let group_gids: Vec<u32> = required_groups
-            .iter()
-            .map(|g| resolve_gid(g))
-            .collect::<Result<Vec<_>>>()?;
         
         info!(
             target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={} gid={} groups={:?} caps={:?}",
-            uid, gid, 
-            required_groups.iter().zip(&group_gids).map(|(n, g)| format!("{}:{}", n, g)).collect::<Vec<_>>(),
-            capabilities
+            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{}",
+            target_user, uid, primary_group, gid
         );
         
-        // Build setpriv command to preserve groups and capabilities
-        let mut cmd = Command::new("setpriv");
-        cmd.arg("--reuid").arg(uid.to_string())
-           .arg("--regid").arg(gid.to_string())
-           .arg("--groups").arg(group_gids.iter().map(|g| g.to_string()).collect::<Vec<_>>().join(","));
-        
-        // Add ambient capabilities if any
-        if !capabilities.is_empty() {
-            cmd.arg("--ambient-caps").arg(capabilities.join(","));
-        }
-        
-        cmd.arg("--");
+        // Use sudo to switch to target user with cvdnetwork as primary group
+        let mut cmd = Command::new("sudo");
+        cmd.arg("-u").arg(target_user)
+           .arg("-g").arg(primary_group)
+           .arg("--");
         
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {

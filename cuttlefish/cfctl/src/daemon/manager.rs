@@ -2028,19 +2028,53 @@ impl InstanceManager {
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
         
-        // Run FHS wrapper directly as root (no user switching)
-        // This matches the working configuration from instance 63 (Oct 26 00:56 UTC)
-        // Running as root allows QEMU to have CAP_NET_ADMIN for TAP device configuration
-        let mut cmd = if let Some(t) = track {
+        // Drop privileges before invoking FHS wrapper
+        // Use runuser to switch to guest user with supplementary groups
+        // No setpriv - let bubblewrap handle capabilities internally
+        let target_user = &self.config.guest_user;
+        let primary_group = &self.config.guest_primary_group;
+        let uid = resolve_uid(target_user)?;
+        let gid = resolve_gid(primary_group)?;
+        
+        // Resolve supplementary groups to GIDs
+        let group_gids: Vec<u32> = self.config.guest_supplementary_groups
+            .iter()
+            .map(|g| resolve_gid(g))
+            .collect::<Result<Vec<_>>>()?;
+        
+        info!(
+            target: "cfctl",
+            "spawn_guest_process: dropping privileges to uid={}:{} gid={}:{} groups={:?}",
+            target_user, uid, primary_group, gid,
+            self.config.guest_supplementary_groups.iter().zip(&group_gids)
+                .map(|(n, g)| format!("{}:{}", n, g))
+                .collect::<Vec<_>>()
+        );
+        
+        let mut cmd = Command::new("runuser");
+        cmd.arg("-u").arg(target_user)
+           .arg("-g").arg(primary_group);
+        
+        // Add supplementary groups
+        for group in &self.config.guest_supplementary_groups {
+            cmd.arg("-G").arg(group);
+        }
+        
+        // Preserve CUTTLEFISH_* environment variables
+        for var in ["CUTTLEFISH_INSTANCE", "CUTTLEFISH_INSTANCE_NUM", "CUTTLEFISH_ADB_TCP_PORT",
+                    "CUTTLEFISH_DISABLE_HOST_GPU", "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR", "GFXSTREAM_HEADLESS"] {
+            cmd.arg("-w").arg(var);
+        }
+        
+        cmd.arg("--");
+        
+        // Use cfenv if track specified, otherwise direct FHS wrapper
+        if let Some(t) = track {
             info!(target: "cfctl", "spawn_guest_process: using track '{}'", t);
-            let mut c = Command::new("cfenv");
-            c.arg("-t").arg(t).arg("--");
-            c
+            cmd.arg("cfenv").arg("-t").arg(t).arg("--");
         } else {
             info!(target: "cfctl", "spawn_guest_process: using default FHS wrapper");
-            let mut c = Command::new(&self.config.cuttlefish_fhs);
-            c.arg("--");
-            c
+            cmd.arg(&self.config.cuttlefish_fhs).arg("--");
         };
         cmd
             .arg("launch_cvd")

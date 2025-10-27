@@ -91,8 +91,9 @@ pkgs.runCommand fhsName {} ''
   chmod +w $out/bin/${fhsName}
   
   # Inject --cap-add cap_net_admin right after the bwrap executable path
-  substituteInPlace $out/bin/${fhsName} \
-    --replace '/bin/bwrap' '/bin/bwrap --cap-add cap_net_admin'
+  # The script has: cmd=( /nix/store/.../bwrap \n  --dev-bind /dev /dev
+  # We need to add our flag on the next line after bwrap
+  sed -i '/\/bin\/bwrap$/a\  --cap-add cap_net_admin' $out/bin/${fhsName}
   
   chmod +x $out/bin/${fhsName}
 ''

@@ -75,6 +75,48 @@ if __name__ == "__main__":
     main()
 EOF
     chmod +x $out/usr/lib64/cuttlefish-common/bin/capability_query.py
+
+    # Allow the wrapper to grant capabilities requested via CUTTLEFISH_BWRAP_CAPS.
+    # This keeps CAP handling configurable from cfctl instead of hardcoding net_admin.
+    for script in $out/bin/${fhsName} $out/bin/${fhsName}-shell; do
+      if [ -f "$script" ]; then
+        chmod +w "$script"
+        python3 - "$script" <<'PY'
+import sys
+from pathlib import Path
+
+script_path = Path(sys.argv[1])
+lines = script_path.read_text().splitlines()
+
+insert_index = None
+for idx, line in enumerate(lines):
+    if line.startswith("exec \"") and "cmd[@]" in line:
+        insert_index = idx
+        break
+
+if insert_index is None:
+    sys.exit(f"did not find command execution in {script_path}")
+
+snippet = [
+    "",
+    "if [ -n \"''${CUTTLEFISH_BWRAP_CAPS:-}\" ]; then",
+    "  if [[ -u \"''${cmd[0]}\" ]]; then",
+    "    # shellcheck disable=SC2206 -- splitting is intentional for cap fragments",
+    "    cmd+=( ''${CUTTLEFISH_BWRAP_CAPS} )",
+    "  else",
+    "    echo \"cuttlefish-fhs: skipping CUTTLEFISH_BWRAP_CAPS; ''${cmd[0]} lacks setuid\" >&2",
+    "  fi",
+    "fi",
+    "",
+]
+
+lines[insert_index:insert_index] = snippet
+
+script_path.write_text("\n".join(lines) + "\n")
+PY
+        chmod +x "$script"
+      fi
+    done
   '';
 
   runScript = entrypoint;

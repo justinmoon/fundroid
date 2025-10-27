@@ -19,6 +19,9 @@ in
 pkgs.buildFHSEnvBubblewrap {
   name = fhsName;
 
+  # Grant CAP_NET_ADMIN to allow QEMU to configure /dev/net/tun
+  extraBwrapArgs = [ "--cap-add" "cap_net_admin" ];
+
   targetPkgs = pkgs': with pkgs'; [
     coreutils
     findutils

@@ -2058,18 +2058,8 @@ impl InstanceManager {
         }
         cmd.arg("--");
         
-        // Add setpriv to set ambient capabilities if any are configured
-        if !self.config.guest_capabilities.is_empty() {
-            let caps_arg = self.config.guest_capabilities
-                .iter()
-                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
-                .collect::<Vec<_>>()
-                .join(",");
-            cmd.arg("setpriv")
-               .arg("--ambient-caps")
-               .arg(&caps_arg)
-               .arg("--");
-        }
+        // Capabilities (e.g., CAP_NET_ADMIN) are granted by bubblewrap inside the FHS wrapper
+        // (bubblewrap is setuid and can grant capabilities after the privilege drop)
         
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {

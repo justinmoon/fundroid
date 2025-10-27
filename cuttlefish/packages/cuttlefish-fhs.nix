@@ -16,9 +16,9 @@ let
     exec "$@"
   '';
 
-in
-pkgs.buildFHSEnvBubblewrap {
-  name = fhsName;
+  # Base FHS environment without cap modifications
+  baseFHS = pkgs.buildFHSEnvBubblewrap {
+    name = "${fhsName}-unwrapped";
 
   targetPkgs = pkgs': with pkgs'; [
     coreutils
@@ -78,5 +78,21 @@ EOF
     chmod +x $out/usr/lib64/cuttlefish-common/bin/capability_query.py
   '';
 
-  runScript = entrypoint;
-}
+    runScript = entrypoint;
+  };
+
+in
+# Patch the generated FHS script to add --cap-add cap_net_admin to bubblewrap
+# This grants CAP_NET_ADMIN inside the namespace so QEMU can configure TAP devices
+# Bubblewrap is setuid, so it can grant capabilities even when invoked by unprivileged user
+pkgs.runCommand fhsName {} ''
+  mkdir -p $out/bin
+  cp ${baseFHS}/bin/${fhsName}-unwrapped $out/bin/${fhsName}
+  chmod +w $out/bin/${fhsName}
+  
+  # Inject --cap-add cap_net_admin right after the bwrap executable path
+  substituteInPlace $out/bin/${fhsName} \
+    --replace '/bin/bwrap' '/bin/bwrap --cap-add cap_net_admin'
+  
+  chmod +x $out/bin/${fhsName}
+''

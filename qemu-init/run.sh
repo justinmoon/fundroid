@@ -3,6 +3,28 @@
 
 set -euo pipefail
 
+# Parse arguments
+GUI_MODE=false
+KERNEL_ARGS=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --gui)
+            GUI_MODE=true
+            shift
+            ;;
+        --headless)
+            GUI_MODE=false
+            shift
+            ;;
+        *)
+            # Treat unknown args as kernel parameters
+            KERNEL_ARGS="$KERNEL_ARGS $1"
+            shift
+            ;;
+    esac
+done
+
 # If not in nix shell, re-exec ourselves inside it
 if ! command -v qemu-system-x86_64 &> /dev/null; then
     exec nix develop .. --command bash "$0" "$@"
@@ -27,21 +49,38 @@ if [ ! -f bzImage ]; then
 fi
 
 echo
-echo "Booting (20 seconds)..."
+if [ "$GUI_MODE" = true ]; then
+    echo "Booting in GUI mode (SDL window)..."
+else
+    echo "Booting in headless mode (20 seconds)..."
+fi
 echo
 
-# Capture output to a temp file
-TMPFILE=$(mktemp)
-trap "rm -f '$TMPFILE'" EXIT
+# Build QEMU command
+QEMU_CMD="qemu-system-x86_64 -kernel ./bzImage -initrd initramfs.cpio.gz"
+QEMU_CMD="$QEMU_CMD -append \"console=ttyS0 quiet init=/init panic=1$KERNEL_ARGS\""
 
-# Use script to give QEMU a PTY (fixes buffering issues)
-script -q "$TMPFILE" bash -c 'timeout 20 qemu-system-x86_64 \
-    -kernel ./bzImage \
-    -initrd initramfs.cpio.gz \
-    -append "console=ttyS0 quiet init=/init panic=1" \
-    -nographic \
-    -serial mon:stdio \
-    -m 512M' || true
+if [ "$GUI_MODE" = true ]; then
+    # GUI mode: SDL window with virtio-gpu
+    QEMU_CMD="$QEMU_CMD -display sdl,gl=on"
+    QEMU_CMD="$QEMU_CMD -device virtio-gpu-pci"
+    QEMU_CMD="$QEMU_CMD -vga none"
+    QEMU_CMD="$QEMU_CMD -serial stdio"
+    QEMU_CMD="$QEMU_CMD -m 1024M"
+    
+    echo "Running: $QEMU_CMD"
+    eval "$QEMU_CMD"
+    exit 0
+else
+    # Headless mode: capture output for validation
+    TMPFILE=$(mktemp)
+    trap "rm -f '$TMPFILE'" EXIT
+    
+    QEMU_CMD="$QEMU_CMD -nographic -serial mon:stdio -m 512M"
+    
+    # Use script to give QEMU a PTY (fixes buffering issues)
+    script -q "$TMPFILE" bash -c "timeout 20 $QEMU_CMD" || true
+fi
 
 echo
 

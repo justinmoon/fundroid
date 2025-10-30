@@ -4,12 +4,16 @@
 use std::os::unix::io::{AsFd, AsRawFd};
 use wayland_client::{Connection, Dispatch, QueueHandle};
 use wayland_client::protocol::{wl_compositor, wl_shm, wl_shm_pool, wl_buffer, wl_surface, wl_callback, wl_registry};
+use wayland_client::protocol::{wl_seat, wl_keyboard};
 
 struct AppData {
     compositor: Option<wl_compositor::WlCompositor>,
     shm: Option<wl_shm::WlShm>,
+    seat: Option<wl_seat::WlSeat>,
+    keyboard: Option<wl_keyboard::WlKeyboard>,
     surface: Option<wl_surface::WlSurface>,
     frame_received: bool,
+    key_received: bool,
 }
 
 // Implement Dispatch for wl_registry to bind globals
@@ -35,6 +39,11 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
                     let shm = registry.bind::<wl_shm::WlShm, _, _>(name, version.min(1), qh, ());
                     println!("[client] Bound to wl_shm");
                     state.shm = Some(shm);
+                }
+                "wl_seat" => {
+                    let seat = registry.bind::<wl_seat::WlSeat, _, _>(name, version.min(7), qh, ());
+                    println!("[client] Bound to wl_seat");
+                    state.seat = Some(seat);
                 }
                 _ => {}
             }
@@ -131,6 +140,66 @@ impl Dispatch<wl_callback::WlCallback, ()> for AppData {
     }
 }
 
+// Implement Dispatch for wl_seat
+impl Dispatch<wl_seat::WlSeat, ()> for AppData {
+    fn event(
+        state: &mut Self,
+        seat: &wl_seat::WlSeat,
+        event: wl_seat::Event,
+        _: &(),
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            wl_seat::Event::Capabilities { capabilities } => {
+                println!("[client] Seat capabilities: {:?}", capabilities);
+                // Keyboard capability should be advertised (bitwise AND check)
+                println!("[client] Requesting keyboard...");
+                let keyboard = seat.get_keyboard(qh, ());
+                state.keyboard = Some(keyboard);
+            }
+            wl_seat::Event::Name { name } => {
+                println!("[client] Seat name: {}", name);
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_keyboard
+impl Dispatch<wl_keyboard::WlKeyboard, ()> for AppData {
+    fn event(
+        state: &mut Self,
+        _: &wl_keyboard::WlKeyboard,
+        event: wl_keyboard::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            wl_keyboard::Event::Keymap { format, fd, size } => {
+                println!("[client] Received keymap (format: {:?}, size: {})", format, size);
+                drop(fd); // Close the fd
+            }
+            wl_keyboard::Event::Enter { serial, surface, keys } => {
+                println!("[client] Keyboard enter (serial: {}, surface: {:?}, keys: {} pressed)", serial, surface, keys.len());
+            }
+            wl_keyboard::Event::Leave { serial, surface } => {
+                println!("[client] Keyboard leave (serial: {}, surface: {:?})", serial, surface);
+            }
+            wl_keyboard::Event::Key { serial, time, key, state: key_state } => {
+                println!("[client] ✓ KEY EVENT: serial={}, time={}, key={}, state={:?}", serial, time, key, key_state);
+                state.key_received = true;
+            }
+            wl_keyboard::Event::Modifiers { serial, mods_depressed, mods_latched, mods_locked, group } => {
+                println!("[client] Modifiers: serial={}, dep={}, lat={}, lock={}, group={}", 
+                    serial, mods_depressed, mods_latched, mods_locked, group);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("===========================================");
     println!("Wayland Test Client for compositor-rs");
@@ -151,8 +220,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app_data = AppData {
         compositor: None,
         shm: None,
+        seat: None,
+        keyboard: None,
         surface: None,
         frame_received: false,
+        key_received: false,
     };
 
     // First roundtrip to get globals
@@ -266,8 +338,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("- Submitted buffer to compositor");
         println!("- Received frame callback");
         println!("\nPhase 6: 11/11 acceptance criteria met! 🎉");
-        println!("\n[client] Keeping gradient visible for 10 seconds...");
-        std::thread::sleep(std::time::Duration::from_secs(10));
+        println!("\n[client] Keeping gradient visible for 15 seconds (waiting for input test)...");
+        
+        // Wait for simulated keyboard event (sent after 5 seconds by compositor)
+        let wait_start = std::time::Instant::now();
+        while !app_data.key_received && wait_start.elapsed() < std::time::Duration::from_secs(15) {
+            event_queue.roundtrip(&mut app_data)?;
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        
+        if app_data.key_received {
+            println!("\n✓ Phase 7: Input event received successfully!");
+        } else {
+            println!("\n(No input event received - compositor may not support input yet)");
+        }
+        
         println!("[client] Exiting...");
         Ok(())
     } else {

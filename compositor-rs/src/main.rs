@@ -27,6 +27,7 @@ impl ControlDevice for Card {}
 
 use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client, Resource};
 use wayland_server::protocol::{wl_compositor, wl_surface, wl_region, wl_shm, wl_shm_pool, wl_buffer, wl_callback};
+use wayland_server::protocol::{wl_seat, wl_pointer, wl_keyboard};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
@@ -73,12 +74,20 @@ struct DrmState {
     db: RefCell<drm::control::dumbbuffer::DumbBuffer>,  // RefCell for interior mutability
 }
 
+// Input state - tracks focused surface for events
+struct InputState {
+    focused_surface: Option<u32>,  // Surface ID that has keyboard focus
+    pointer_resource: Option<wl_pointer::WlPointer>,
+    keyboard_resource: Option<wl_keyboard::WlKeyboard>,
+}
+
 // State that implements all protocol dispatchers
 struct CompositorState {
     surfaces: Arc<Mutex<HashMap<u32, SurfaceData>>>,
     shm_pools: Arc<Mutex<HashMap<u32, ShmPoolData>>>,
     buffers: Arc<Mutex<HashMap<u32, BufferData>>>,
     drm_state: Arc<Mutex<Option<DrmState>>>,
+    input_state: Arc<Mutex<InputState>>,
 }
 
 // Helper function to render buffer to framebuffer
@@ -411,6 +420,101 @@ impl Dispatch<wl_callback::WlCallback, ()> for CompositorState {
     }
 }
 
+// Implement Dispatch for wl_seat (input device seat)
+impl Dispatch<wl_seat::WlSeat, ()> for CompositorState {
+    fn request(
+        state: &mut Self,
+        _client: &Client,
+        _resource: &wl_seat::WlSeat,
+        request: wl_seat::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_seat::Request::GetPointer { id } => {
+                println!("✓ Client requested pointer");
+                let pointer = data_init.init(id, ());
+                if let Ok(mut input) = state.input_state.lock() {
+                    input.pointer_resource = Some(pointer);
+                }
+            }
+            wl_seat::Request::GetKeyboard { id } => {
+                println!("✓ Client requested keyboard");
+                let keyboard = data_init.init(id, ());
+                if let Ok(mut input) = state.input_state.lock() {
+                    input.keyboard_resource = Some(keyboard);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement GlobalDispatch for wl_seat
+impl GlobalDispatch<wl_seat::WlSeat, ()> for CompositorState {
+    fn bind(
+        _state: &mut Self,
+        _handle: &wayland_server::DisplayHandle,
+        _client: &Client,
+        resource: New<wl_seat::WlSeat>,
+        _global_data: &(),
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        println!("✓ Client bound to wl_seat");
+        let seat = data_init.init(resource, ());
+        
+        // Announce seat capabilities (pointer + keyboard)
+        seat.capabilities(wl_seat::Capability::Pointer | wl_seat::Capability::Keyboard);
+        
+        // Announce seat name
+        seat.name("seat0".to_string());
+    }
+}
+
+// Implement Dispatch for wl_pointer
+impl Dispatch<wl_pointer::WlPointer, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_pointer::WlPointer,
+        request: wl_pointer::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_pointer::Request::SetCursor { .. } => {
+                // Client wants to set cursor image - we'll ignore for now
+            }
+            wl_pointer::Request::Release => {
+                println!("✓ Pointer released");
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_keyboard
+impl Dispatch<wl_keyboard::WlKeyboard, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_keyboard::WlKeyboard,
+        request: wl_keyboard::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_keyboard::Request::Release => {
+                println!("✓ Keyboard released");
+            }
+            _ => {}
+        }
+    }
+}
+
 // Implement GlobalDispatch for wl_compositor
 use wayland_server::GlobalDispatch;
 
@@ -599,6 +703,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     display_handle.create_global::<CompositorState, wl_shm::WlShm, _>(1, ());
     println!("✓ Created wl_shm global (v1)");
     
+    // Create wl_seat global (version 7) for input devices
+    display_handle.create_global::<CompositorState, wl_seat::WlSeat, _>(7, ());
+    println!("✓ Created wl_seat global (v7)");
+    
     // Create listening socket
     let socket = ListeningSocket::bind("wayland-0")?;
     let socket_name = socket.socket_name()
@@ -635,7 +743,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         shm_pools: Arc::new(Mutex::new(HashMap::new())),
         buffers: Arc::new(Mutex::new(HashMap::new())),
         drm_state: Arc::new(Mutex::new(Some(drm_state))),
+        input_state: Arc::new(Mutex::new(InputState {
+            focused_surface: None,
+            pointer_resource: None,
+            keyboard_resource: None,
+        })),
     };
+    
+    // Simple test: After 5 seconds, send a simulated keyboard event to any connected surface
+    let mut test_event_sent = false;
     
     while start.elapsed() < duration {
         // Check for new client connections
@@ -644,6 +760,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match display_handle.insert_client(stream, std::sync::Arc::new(())) {
                 Ok(client) => {
                     println!("✓ New client connected: {:?}", client.id());
+                    
+                    // Set focus to the first surface that gets created
+                    if let Ok(input) = state.input_state.lock() {
+                        if input.focused_surface.is_none() {
+                            // Will be set when surface is created
+                        }
+                    }
                 }
                 Err(e) => {
                     eprintln!("Error inserting client: {}", e);
@@ -661,6 +784,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         // Flush client messages
         display.flush_clients()?;
+        
+        // Phase 7 test: Send simulated keyboard event after 5 seconds
+        if !test_event_sent && start.elapsed() > std::time::Duration::from_secs(5) {
+            if let Ok(input) = state.input_state.lock() {
+                if let Some(ref keyboard) = input.keyboard_resource {
+                    println!("\n[INPUT TEST] Simulating keyboard event (key 'A' press)");
+                    
+                    // Send keyboard key event (key code 30 = 'A', pressed)
+                    let serial = 1;
+                    let time_ms = start.elapsed().as_millis() as u32;
+                    let key = 30; // Linux key code for 'A'
+                    let state_pressed = wl_keyboard::KeyState::Pressed;
+                    
+                    keyboard.key(serial, time_ms, key, state_pressed);
+                    println!("[INPUT TEST] Sent key event to client");
+                    test_event_sent = true;
+                }
+            }
+        }
         
         // Small sleep to avoid busy-waiting
         std::thread::sleep(std::time::Duration::from_millis(10));

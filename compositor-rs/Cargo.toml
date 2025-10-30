@@ -14,6 +14,9 @@ wayland-backend = "0.3"
 # Phase 6+: Buffer rendering
 libc = "0.2"
 
+# Phase 7: Input event handling (protocol only for now)
+# TODO: Add libinput integration later (requires libudev in build env)
+
 # Test client
 wayland-client = "0.31"
 tempfile = "3"

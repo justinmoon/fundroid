@@ -238,8 +238,10 @@ pub fn main() void {
     print("[OK] Mounted /dev (device nodes)\n", .{});
 
     // Load kernel modules for DRM support inline (no fork to avoid signal handler issues)
-    print("[DRM] Loading kernel modules...\n", .{});
-    loadKernelModules();
+    // DISABLED: Module version mismatch (6.12.44 modules vs 6.12.43 kernel)
+    // TODO: Get matching modules or kernel with built-in virtio-gpu
+    // print("[DRM] Loading kernel modules...\n", .{});
+    // loadKernelModules();
 
     // Check if DRM device exists
     print("[DRM] Checking for /dev/dri/card0...\n", .{});

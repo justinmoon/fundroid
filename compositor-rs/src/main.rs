@@ -24,6 +24,7 @@ use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client, 
 use wayland_server::protocol::{wl_compositor, wl_surface, wl_region, wl_shm, wl_shm_pool, wl_buffer, wl_callback};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
 
 // SHM pool data - stores fd for later mapping
 struct ShmPoolData {
@@ -64,7 +65,7 @@ struct DrmState {
     crtc_handle: drm::control::crtc::Handle,
     connector_handle: drm::control::connector::Handle,
     mode: drm::control::Mode,
-    db: drm::control::dumbbuffer::DumbBuffer,
+    db: RefCell<drm::control::dumbbuffer::DumbBuffer>,  // RefCell for interior mutability
 }
 
 // State that implements all protocol dispatchers
@@ -114,8 +115,10 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
     let drm_guard = state.drm_state.lock().unwrap();
     if let Some(ref drm) = *drm_guard {
         let card = drm.card.lock().unwrap();
-        let mut db_clone = drm.db.clone();
-        let mut fb_map = card.map_dumb_buffer(&mut db_clone)?;
+        
+        // Use RefCell to get mutable access to the dumb buffer
+        let mut db_mut = drm.db.borrow_mut();
+        let mut fb_map = card.map_dumb_buffer(&mut *db_mut)?;
         
         let fb_pixels = unsafe {
             std::slice::from_raw_parts_mut(
@@ -575,7 +578,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         crtc_handle,
         connector_handle,
         mode,
-        db,
+        db: RefCell::new(db),  // Wrap in RefCell for interior mutability
     };
     
     // Run for 30 seconds with event loop

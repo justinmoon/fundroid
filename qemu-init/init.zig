@@ -3,6 +3,9 @@ const posix = std.posix;
 const linux = std.os.linux;
 
 var shutdown_requested: bool = false;
+var child_pid: i32 = 0;
+var child_exit_status: u32 = 0;
+var child_exited: bool = false;
 
 fn print(comptime fmt: []const u8, args: anytype) void {
     var buf: [1024]u8 = undefined;
@@ -53,10 +56,35 @@ fn handleSignal(sig: i32) callconv(.c) void {
             while (true) {
                 const pid = linux.waitpid(-1, &status, linux.W.NOHANG);
                 if (pid <= 0) break;
+                if (pid == child_pid) {
+                    child_exit_status = status;
+                    child_exited = true;
+                    child_pid = 0;
+                }
             }
         },
         else => {},
     }
+}
+
+fn spawnChild() void {
+    const pid = linux.fork();
+    if (pid < 0) {
+        print("[ERROR] Fork failed\n", .{});
+        return;
+    }
+
+    if (pid == 0) {
+        const argv = [_:null]?[*:0]const u8{ "/test_child", null };
+        const envp = [_:null]?[*:0]const u8{null};
+        _ = linux.execve("/test_child", &argv, &envp);
+        print("[ERROR] Exec failed\n", .{});
+        posix.exit(1);
+    }
+
+    child_pid = @intCast(pid);
+    child_exited = false;
+    print("[SPAWN] Child process started with PID {d}\n", .{pid});
 }
 
 fn installSignalHandlers() void {
@@ -78,7 +106,7 @@ fn installSignalHandlers() void {
 
 pub fn main() void {
     print("========================================\n", .{});
-    print("QEMU MINIMAL INIT - Phase 3: Signal Handling\n", .{});
+    print("QEMU MINIMAL INIT - Phase 4: Process Management\n", .{});
     print("========================================\n", .{});
     print("PID: {d} (should be 1)\n", .{linux.getpid()});
     print("\n", .{});
@@ -151,15 +179,50 @@ pub fn main() void {
     print("[OK] Found {d} entries in /dev\n", .{count});
 
     print("\n[SUCCESS] All filesystems mounted and verified!\n", .{});
-    print("Starting heartbeat loop...\n\n", .{});
+    print("\n[PHASE 4] Starting process management...\n", .{});
+
+    spawnChild();
+    var respawn_count: u32 = 0;
+
+    print("\nStarting heartbeat loop...\n\n", .{});
 
     while (!shutdown_requested) {
+        // Check for child exit first (before sleeping)
+        if (child_exited) {
+            const exit_code = if ((child_exit_status & 0x7f) == 0)
+                (child_exit_status >> 8) & 0xff
+            else
+                child_exit_status & 0x7f;
+
+            print("\n[CHILD] Process exited with status {d}\n", .{exit_code});
+            child_exited = false;
+
+            if (respawn_count < 3) {
+                respawn_count += 1;
+                print("[RESPAWN] Waiting 1 second before respawn (count: {d})...\n", .{respawn_count});
+                posix.nanosleep(1, 0);
+                print("[RESPAWN] Spawning child...\n", .{});
+                spawnChild();
+            } else {
+                print("[RESPAWN] Reached respawn limit, continuing without child\n", .{});
+            }
+        }
+
         const timestamp = std.time.timestamp();
         print("[heartbeat] Unix timestamp: {d}\n", .{timestamp});
-        posix.nanosleep(2, 0);
+        posix.nanosleep(0, 500_000_000); // 0.5 seconds
     }
 
     print("\n[SHUTDOWN] Received SIGTERM, shutting down...\n", .{});
+
+    if (child_pid > 0) {
+        print("[SHUTDOWN] Terminating child process PID {d}...\n", .{child_pid});
+        _ = linux.kill(child_pid, linux.SIG.TERM);
+        posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds for graceful exit
+        if (child_pid > 0) {
+            _ = linux.kill(child_pid, linux.SIG.KILL);
+        }
+    }
 
     print("[SHUTDOWN] Unmounting /dev...\n", .{});
     unmountFilesystem("/dev");

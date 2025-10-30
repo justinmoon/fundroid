@@ -27,7 +27,7 @@ if [ ! -f bzImage ]; then
 fi
 
 echo
-echo "Booting (10 seconds)..."
+echo "Booting (20 seconds)..."
 echo
 
 # Capture output to a temp file
@@ -35,7 +35,7 @@ TMPFILE=$(mktemp)
 trap "rm -f '$TMPFILE'" EXIT
 
 # Use script to give QEMU a PTY (fixes buffering issues)
-script -q "$TMPFILE" bash -c 'timeout 10 qemu-system-x86_64 \
+script -q "$TMPFILE" bash -c 'timeout 20 qemu-system-x86_64 \
     -kernel ./bzImage \
     -initrd initramfs.cpio.gz \
     -append "console=ttyS0 quiet init=/init panic=1" \
@@ -56,11 +56,18 @@ if ! grep -q "PID: 1" "$TMPFILE"; then
     exit 1
 fi
 
-# Count heartbeats (should see multiple over 10 seconds)
+# Count heartbeats (should see multiple over 15 seconds)
 HEARTBEAT_COUNT=$(grep -c "\[heartbeat\]" "$TMPFILE" || echo "0")
-if [ "$HEARTBEAT_COUNT" -lt 3 ]; then
-    echo "❌ FAILED: Only saw $HEARTBEAT_COUNT heartbeats (expected at least 3)"
+if [ "$HEARTBEAT_COUNT" -lt 5 ]; then
+    echo "❌ FAILED: Only saw $HEARTBEAT_COUNT heartbeats (expected at least 5)"
     exit 1
 fi
 
-echo "✅ SUCCESS: Init ran as PID 1 and printed $HEARTBEAT_COUNT heartbeats"
+# Check for child spawning and respawning
+SPAWN_COUNT=$(grep -c "\[SPAWN\]" "$TMPFILE" || echo "0")
+if [ "$SPAWN_COUNT" -lt 3 ]; then
+    echo "❌ FAILED: Only saw $SPAWN_COUNT spawns (expected at least 3 with respawns)"
+    exit 1
+fi
+
+echo "✅ SUCCESS: Init ran as PID 1, printed $HEARTBEAT_COUNT heartbeats, spawned child $SPAWN_COUNT times"

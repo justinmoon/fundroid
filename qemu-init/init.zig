@@ -128,11 +128,9 @@ fn startSeatd() i32 {
 
 fn loadKernelModules() void {
     const modules = [_][]const u8{
-        "/lib/modules/virtio.ko",
-        "/lib/modules/virtio_ring.ko",
-        "/lib/modules/virtio_pci_modern_dev.ko",
-        "/lib/modules/virtio_pci_legacy_dev.ko",
-        "/lib/modules/virtio_pci.ko",
+        "/lib/modules/drm.ko",
+        "/lib/modules/drm_shmem_helper.ko",
+        "/lib/modules/drm_kms_helper.ko",
         "/lib/modules/virtio_dma_buf.ko",
         "/lib/modules/virtio-gpu.ko",
     };
@@ -238,10 +236,8 @@ pub fn main() void {
     print("[OK] Mounted /dev (device nodes)\n", .{});
 
     // Load kernel modules for DRM support inline (no fork to avoid signal handler issues)
-    // DISABLED: Module version mismatch (6.12.44 modules vs 6.12.43 kernel)
-    // TODO: Get matching modules or kernel with built-in virtio-gpu
-    // print("[DRM] Loading kernel modules...\n", .{});
-    // loadKernelModules();
+    print("[DRM] Loading kernel modules...\n", .{});
+    loadKernelModules();
 
     // Check if DRM device exists
     print("[DRM] Checking for /dev/dri/card0...\n", .{});

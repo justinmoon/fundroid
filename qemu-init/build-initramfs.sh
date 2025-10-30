@@ -98,6 +98,13 @@ if [ -L "weston-rootfs" ]; then
     echo "Weston rootfs included successfully"
 fi
 
+# Include custom weston.ini configuration
+if [ -f "rootfs/etc/weston.ini" ]; then
+    mkdir -p "$WORK_DIR/etc"
+    cp rootfs/etc/weston.ini "$WORK_DIR/etc/weston.ini"
+    echo "Including custom weston.ini configuration"
+fi
+
 cd "$WORK_DIR"
 find . | cpio --create --format=newc --quiet | gzip > "$OLDPWD/initramfs.cpio.gz"
 cd "$OLDPWD"

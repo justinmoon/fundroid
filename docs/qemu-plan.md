@@ -124,58 +124,36 @@ QEMU eliminates all that and lets us focus on core concepts.
 
 **Note:** Test validation has timing issues with QEMU boot time, but manual testing confirms child spawning/respawning works correctly.
 
-### Phase 5: Service Management (Optional)
-**Goal:** Basic service supervision.
-
-**Tasks:**
-1. Read a simple config file (list of services to run)
-2. Start multiple services
-3. Monitor and restart them if they crash
-4. Shutdown in order
-
-**What you'll learn:**
-- Service dependency (startup order)
-- Health checking
-- Graceful shutdown
-
-**Acceptance Criteria:**
-- [ ] Create `services.conf` listing 3 test services
-- [ ] Include services.conf in initramfs
-- [ ] Output shows "Loading service configuration from /services.conf"
-- [ ] Output shows "Starting service: service1" (for each service)
-- [ ] All 3 services show PID assigned
-- [ ] From host, identify one child PID and `kill -9 <pid>`
-- [ ] Output shows "Service service1 (PID <pid>) crashed with signal 9"
-- [ ] Output shows "Restarting service: service1"
-- [ ] Service1 gets a new PID
-- [ ] Other services continue running unaffected
-- [ ] On SIGTERM, output shows "Stopping services in reverse order..."
-- [ ] Each service terminated gracefully before unmounting filesystems
-- [ ] Output shows final service count: "All 3 services stopped"
-
 ---
 
 ## Graphics / Wayland Bring-up
 
-### Phase 6: QEMU DRM Baseline (drm_rect on virtio-gpu)
-**Goal:** Get a working virtual KMS/DRM stack inside QEMU and prove it by running `drm_rect`.
+### Phase 5: Port drm_rect to Zig
+**Goal:** Port the existing Rust drm_rect program to Zig, creating a self-contained DRM/KMS graphics demo.
 
 **Tasks:**
-1. Replace the Debian netboot kernel with a kernel that has `virtio_gpu`, `virtio_dma_buf`, `virtio_input`, and `virtio-pci` built-in (no modules). Add a `qemu-init/kernel/default.nix` that calls `pkgs.linux.override` with the required config, and expose it as `packages.x86_64-linux.qemu-virtio-kernel` in `flake.nix`.
-2. Teach `run.sh` to accept `--gui`/`--headless` flags. When `--gui` is set, drop `-nographic`, add `-display sdl,gl=on`, `-device virtio-gpu-pci`, `-vga none`, and bump RAM to `-m 1024`. Keep the current scripted PTY path for headless validation.
-3. Split the initramfs staging into `qemu-init/rootfs/`. Update `build-initramfs.sh` to rsync that directory plus `/init` into the cpio archive so we can stage binaries and configuration declaratively.
-4. Fork `rust/drm_rect` so it builds for Linux: gate `android_logger` behind `#[cfg(target_os = "android")]` and use `env_logger` otherwise. Add a `just drm-rect-linux` recipe that runs `cargo build --release --target x86_64-unknown-linux-musl`.
-5. Copy the resulting `target/x86_64-unknown-linux-musl/release/drm_rect` into `rootfs/usr/bin/drm_rect` (strip it to keep size down).
-6. Extend `init.zig` with a `--run-drm-demo` flag (parsed from `/proc/cmdline`: e.g. `init=/init gfx=drm_rect`). When set, spawn `/usr/bin/drm_rect` after mounting `/dev`.
+1. Create `qemu-init/drm_rect.zig` - port the Rust drm_rect code to Zig
+2. Use Zig's C interop to call libdrm functions (drmOpen, drmModeGetResources, etc.)
+3. Implement DRM modesetting: find connector, CRTC, create framebuffer
+4. Draw solid color rectangle using direct framebuffer access
+5. Build as static Linux binary: `zig build-exe -target x86_64-linux-musl`
+6. Test locally with `/dev/dri/card0` access
+
+**What you'll learn:**
+- DRM/KMS API fundamentals (mode setting, connectors, CRTCs)
+- Zig's C interop (`@cImport`, `@cInclude`)
+- Direct framebuffer manipulation
+- Graphics card initialization
 
 **Acceptance Criteria:**
-- [ ] `nix build .#packages.x86_64-linux.qemu-virtio-kernel` produces `result/bzImage` with `virtio_gpu` listed in `nm`.
-- [ ] `./run.sh --gui gfx=drm_rect` pops up an SDL window (no more `-nographic`) and shows console logs in the terminal.
-- [ ] `dmesg` inside QEMU reports `virtio_gpu` and `drm: fb0: virgl`.
-- [ ] `drm_rect` prints its startup banner to the serial console and renders a solid fill in the QEMU window for ~30 seconds before exiting.
-- [ ] Headless mode (`./run.sh --headless`) still passes the existing heartbeat QA checks.
+- [ ] drm_rect.zig compiles to static Linux binary
+- [ ] Opens /dev/dri/card0 successfully
+- [ ] Enumerates available connectors and CRTCs
+- [ ] Creates framebuffer and draws solid color
+- [ ] Runs on real hardware with DRM-capable graphics card
+- [ ] Clean shutdown and resource cleanup
 
-### Phase 7: Weston Compositor Proof
+### Phase 6: QEMU DRM Integration
 **Goal:** Boot straight into the Weston DRM backend from our init and see the Weston desktop inside the QEMU window.
 
 **Tasks:**
@@ -193,7 +171,7 @@ QEMU eliminates all that and lets us focus on core concepts.
 - [ ] Exiting Weston (Ctrl+Alt+Backspace) respawns it up to the configured retry limit without panicking PID 1.
 - [ ] Headless regression tests still pass when `gfx` is unset.
 
-### Phase 8: Cage Compositor Option
+### Phase 7: Weston Compositor Proof
 **Goal:** Provide a kiosk-style compositor alternative powered by Cage and prove it by running a demo Wayland client.
 
 **Tasks:**
@@ -209,7 +187,7 @@ QEMU eliminates all that and lets us focus on core concepts.
 - [ ] Killing the Cage process from the host (`sendkey ctrl-alt-backspace` in the QEMU monitor) causes PID 1 to respawn it and logs the new PID.
 - [ ] Switching between `gfx=weston`, `gfx=cage`, and no `gfx` happens without rebuilding the initramfs (only the kernel cmdline changes).
 
-### Phase 9: Unified Compositor Flags in Init
+### Phase 8: Cage Compositor Option
 **Goal:** Expose a single init binary that can boot in headless QA mode, Weston mode, or Cage mode based on kernel parameters.
 
 **Tasks:**

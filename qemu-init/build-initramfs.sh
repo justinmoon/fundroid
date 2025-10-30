@@ -13,6 +13,14 @@ if [ ! -f "test_child" ]; then
     exit 1
 fi
 
+# Build weston-rootfs if not already built
+if [ ! -L "weston-rootfs" ]; then
+    echo "Building weston-rootfs package..."
+    nix build ..#weston-rootfs --out-link weston-rootfs
+else
+    echo "Using existing weston-rootfs"
+fi
+
 WORK_DIR=$(mktemp -d)
 trap "rm -rf '$WORK_DIR'" EXIT
 
@@ -55,6 +63,39 @@ if [ -d "kernel-modules" ]; then
     mkdir -p "$WORK_DIR/lib/modules"
     cp kernel-modules/*.ko "$WORK_DIR/lib/modules/" 2>/dev/null || true
     echo "Including kernel modules"
+fi
+
+# Include weston-rootfs if available
+if [ -L "weston-rootfs" ]; then
+    echo "Including weston-rootfs in initramfs..."
+    mkdir -p "$WORK_DIR/usr"
+    
+    # Copy binaries
+    if [ -d "weston-rootfs/bin" ]; then
+        cp -r weston-rootfs/bin "$WORK_DIR/usr/"
+        echo "  - Copied binaries"
+    fi
+    
+    # Copy libraries
+    if [ -d "weston-rootfs/lib" ]; then
+        cp -r weston-rootfs/lib "$WORK_DIR/usr/"
+        echo "  - Copied libraries"
+    fi
+    
+    # Copy shared resources (fonts, icons, etc.)
+    if [ -d "weston-rootfs/share" ]; then
+        cp -r weston-rootfs/share "$WORK_DIR/usr/"
+        echo "  - Copied shared resources"
+    fi
+    
+    # Copy etc configs
+    if [ -d "weston-rootfs/etc" ]; then
+        mkdir -p "$WORK_DIR/etc"
+        cp -r weston-rootfs/etc/* "$WORK_DIR/etc/" 2>/dev/null || true
+        echo "  - Copied configuration files"
+    fi
+    
+    echo "Weston rootfs included successfully"
 fi
 
 cd "$WORK_DIR"

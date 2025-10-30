@@ -7,13 +7,14 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
     cuttlefish.url = "path:./cuttlefish";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, android-nixpkgs, cuttlefish }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, rust-overlay, android-nixpkgs, cuttlefish }:
     {
       # Export cuttlefish NixOS modules
       nixosModules = cuttlefish.nixosModules;
@@ -26,6 +27,13 @@
             rust-overlay.overlays.default
             android-nixpkgs.overlays.default
           ];
+          config = {
+            allowUnfree = true;
+          };
+        };
+
+        pkgs-unstable = import nixpkgs-unstable {
+          inherit system;
           config = {
             allowUnfree = true;
           };
@@ -78,7 +86,7 @@
             pkgs.lz4
             androidSdkEnv
             # QEMU init learning environment
-            pkgs.zig
+            pkgs-unstable.zig  # Use latest Zig from unstable
             pkgs.qemu
             # Note: kernel can't be built on macOS, we download pre-built instead
           ];

@@ -387,14 +387,15 @@ pub fn main() void {
     }
     
     // [PHASE 5] Start seatd (seat management daemon)
-    // This must be started BEFORE Weston, as it manages device permissions
-    print("\n[PHASE 5] Starting seatd for device access management...\n", .{});
-    const seatd_pid = startSeatd();
-    if (seatd_pid > 0) {
-        print("[PHASE 5] seatd is running, Weston will be able to access devices\n", .{});
-    } else {
-        print("[PHASE 5] WARNING: seatd failed to start, Weston may not work\n", .{});
-    }
+    // TEMPORARILY DISABLED: seatd has stack smashing issue (glibc incompatibility)
+    // Weston can run as root without seatd for now
+    print("\n[PHASE 5] Skipping seatd (running Weston as root)...\n", .{});
+    // const seatd_pid = startSeatd();
+    // if (seatd_pid > 0) {
+    //     print("[PHASE 5] seatd is running, Weston will be able to access devices\n", .{});
+    // } else {
+    //     print("[PHASE 5] WARNING: seatd failed to start, Weston may not work\n", .{});
+    // }
     
     // Check if gfx mode requested
     if (gfx_mode) |mode| {

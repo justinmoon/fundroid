@@ -14,6 +14,10 @@ wayland-backend = "0.3"
 # Phase 6+: Buffer rendering
 libc = "0.2"
 
+# Test client
+wayland-client = "0.31"
+tempfile = "3"
+
 [profile.release]
 opt-level = "z"
 lto = true

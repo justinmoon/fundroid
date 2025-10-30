@@ -401,20 +401,70 @@ pub fn main() void {
                 print("[GFX] drm_rect exited\n", .{});
             }
         } else if (std.mem.eql(u8, mode, "compositor-rs")) {
-            print("\n[GFX] Launching compositor-rs (Rust DRM)...\n", .{});
-            const pid = linux.fork();
-            if (pid == 0) {
+            print("\n[GFX] Launching compositor-rs + test-client...\n", .{});
+            
+            // Launch compositor in background
+            const compositor_pid = linux.fork();
+            if (compositor_pid == 0) {
                 const argv = [_:null]?[*:0]const u8{ "/compositor-rs", null };
-                const envp = [_:null]?[*:0]const u8{null};
+                const envp = [_:null]?[*:0]const u8{
+                    "XDG_RUNTIME_DIR=/run/wayland",
+                    null
+                };
                 _ = linux.execve("/compositor-rs", &argv, &envp);
                 print("[ERROR] Failed to exec compositor-rs\n", .{});
                 posix.exit(1);
-            } else if (pid > 0) {
-                print("[GFX] compositor-rs started with PID {d}\n", .{pid});
-                // Wait for it to finish
-                var status: u32 = 0;
-                _ = linux.waitpid(@intCast(pid), &status, 0);
-                print("[GFX] compositor-rs exited\n", .{});
+            } else if (compositor_pid > 0) {
+                print("[GFX] compositor-rs started with PID {d} (background)\n", .{compositor_pid});
+                
+                // Wait 2 seconds for compositor to initialize
+                print("[GFX] Waiting 2 seconds for compositor to initialize...\n", .{});
+                posix.nanosleep(2, 0);
+                
+                // Launch test client in foreground
+                print("[GFX] Launching test-client...\n", .{});
+                const client_pid = linux.fork();
+                if (client_pid == 0) {
+                    const argv = [_:null]?[*:0]const u8{ "/test-client", null };
+                    const envp = [_:null]?[*:0]const u8{
+                        "WAYLAND_DISPLAY=wayland-0",
+                        "XDG_RUNTIME_DIR=/run/wayland",
+                        null
+                    };
+                    _ = linux.execve("/test-client", &argv, &envp);
+                    print("[ERROR] Failed to exec test-client\n", .{});
+                    posix.exit(1);
+                } else if (client_pid > 0) {
+                    print("[GFX] test-client started with PID {d}\n", .{client_pid});
+                    
+                    // Wait for test-client to complete
+                    var client_status: u32 = 0;
+                    _ = linux.waitpid(@intCast(client_pid), &client_status, 0);
+                    
+                    const exit_code = if ((client_status & 0x7f) == 0)
+                        (client_status >> 8) & 0xff
+                    else
+                        client_status & 0x7f;
+                    
+                    print("[GFX] test-client exited with code {d}\n", .{exit_code});
+                    
+                    // Terminate compositor
+                    print("[GFX] Terminating compositor-rs...\n", .{});
+                    _ = linux.kill(@intCast(compositor_pid), linux.SIG.TERM);
+                    posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds
+                    
+                    var compositor_status: u32 = 0;
+                    _ = linux.waitpid(@intCast(compositor_pid), &compositor_status, 0);
+                    print("[GFX] compositor-rs terminated\n", .{});
+                    
+                    // Exit with test client's exit code
+                    if (exit_code == 0) {
+                        print("\n[SUCCESS] Test passed! Shutting down...\n", .{});
+                    } else {
+                        print("\n[FAILURE] Test failed with exit code {d}\n", .{exit_code});
+                    }
+                    posix.exit(@intCast(exit_code));
+                }
             }
         }
     }

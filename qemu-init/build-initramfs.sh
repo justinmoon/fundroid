@@ -65,6 +65,13 @@ if [ -f "compositor-rs" ]; then
     echo "Including compositor-rs in initramfs (statically linked)"
 fi
 
+# Include test-client if available (statically linked, no libs needed)
+if [ -f "test-client" ]; then
+    cp test-client "$WORK_DIR/test-client"
+    chmod +x "$WORK_DIR/test-client"
+    echo "Including test-client in initramfs (statically linked)"
+fi
+
 # Include kernel modules if available
 if [ -d "kernel-modules" ]; then
     mkdir -p "$WORK_DIR/lib/modules"

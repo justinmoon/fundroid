@@ -11,6 +11,9 @@ drm = "0.12"
 wayland-server = "0.31"
 wayland-backend = "0.3"
 
+# Phase 6+: Buffer rendering
+memmap2 = "0.9"
+
 [profile.release]
 opt-level = "z"
 lto = true

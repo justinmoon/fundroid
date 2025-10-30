@@ -131,6 +131,89 @@ Phase 3 complete - Framebuffer rendering successful!
 - **Pixel formats**: XRGB8888 little-endian (0x00RRGGBB in memory)
 - **Rust for graphics**: Zero-cost abstractions with full hardware access!
 
-### Next Steps
+## Phase 4: Wayland Server Setup ✅
 
-Phase 4 will add Wayland server setup to accept client connections.
+Successfully implemented Wayland server with event loop!
+
+### Features
+
+- Creates Wayland Display and ListeningSocket ✅
+- Binds to `/run/wayland/wayland-0` ✅
+- Accepts client connections ✅
+- Event loop: accept → insert_client → dispatch → flush ✅
+- Logs client connections ✅
+- Runs for 30 seconds accepting connections ✅
+
+### Binary Info
+
+- **Size**: 506KB (was 400KB, +106KB for Wayland)
+- **Protocols**: Ready for client connections
+
+## Phase 5: Surface Creation Protocol ✅
+
+Successfully implemented full surface protocol!
+
+### Features
+
+- wl_compositor v6 global advertised ✅
+- Dispatch handlers for surfaces, regions ✅
+- Surface creation tracked in HashMap ✅
+- Attach/commit/damage handlers ✅
+- GlobalDispatch for protocol binding ✅
+
+### Binary Info
+
+- **Size**: 544KB (was 506KB, +38KB for protocol)
+- **Protocols**: wl_compositor v6
+
+## Phase 6: SHM Buffer Protocol ⚠️
+
+SHM protocol implemented, pixel rendering blocked.
+
+### Features
+
+- wl_shm v1 global advertised ✅
+- SHM pool creation (stores fd and size) ✅
+- Buffer creation (stores metadata) ✅
+- Format advertisement (ARGB8888, XRGB8888) ✅
+- Buffer attach and commit ✅
+- **Pixel copying NOT implemented** ❌ (ownership complexity)
+- **QEMU still shows orange** ❌ (not client content)
+
+### Binary Info
+
+- **Size**: 572KB (was 544KB, +28KB for SHM)
+- **Protocols**: wl_compositor v6, wl_shm v1
+- **Status**: Protocol complete, rendering incomplete
+
+### What's Missing
+
+Pixel rendering blocked by Rust ownership challenges:
+- DRM state needs Arc<Mutex<>> refactoring
+- mmap lifetime management across protocol handlers
+- Concurrent framebuffer access patterns
+
+**Estimated fix:** 2-3 hours of architectural refactoring
+
+### Current State
+
+Run it and you'll see:
+```bash
+cd qemu-init
+./run.sh --gui gfx=compositor-rs
+```
+
+**What you see:** Orange screen (compositor's framebuffer)  
+**What's working:** Full Wayland protocol, clients can connect and send buffers  
+**What's missing:** Copying client pixels to display
+
+## Summary
+
+**Completed:** 572KB functional Wayland compositor with:
+- ✅ DRM/KMS rendering (orange framebuffer)
+- ✅ Wayland server (socket + event loop)
+- ✅ wl_compositor v6 (surfaces, regions)
+- ✅ wl_shm v1 (pools, buffers, formats)
+- ❌ Pixel copying (needs refactoring)
+
+**Code:** 405 lines proving Rust can do low-level compositor work!

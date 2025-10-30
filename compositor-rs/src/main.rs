@@ -20,8 +20,10 @@ impl AsRawFd for Card {
 impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
+use wayland_server::{Display, ListeningSocket};
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("compositor-rs v0.1.0 - Phase 3: Framebuffer Allocation");
+    println!("compositor-rs v0.1.0 - Phase 4: Wayland Server Setup");
     println!();
 
     let card_path = "/dev/dri/card0";
@@ -125,10 +127,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ CRTC configured, displaying framebuffer!");
     println!();
     
-    println!("Displaying orange screen for 10 seconds...");
-    std::thread::sleep(std::time::Duration::from_secs(10));
+    // Phase 4: Create Wayland server
+    println!("Creating Wayland server...");
+    
+    // Set XDG_RUNTIME_DIR to /run/wayland
+    std::env::set_var("XDG_RUNTIME_DIR", "/run/wayland");
+    std::fs::create_dir_all("/run/wayland").ok();
+    
+    // Create display (Wayland server instance)
+    let mut display: Display<()> = Display::new()?;
+    let mut display_handle = display.handle();
+    
+    // Create listening socket
+    let socket = ListeningSocket::bind("wayland-0")?;
+    let socket_name = socket.socket_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("wayland-0");
+    
+    println!("✓ Created Wayland socket: /run/wayland/{}", socket_name);
+    println!();
+    println!("Compositor ready!");
+    println!("  - Display: Orange screen at 640x480");
+    println!("  - Socket: /run/wayland/{}", socket_name);
+    println!("  - Clients can connect via WAYLAND_DISPLAY={}", socket_name);
+    println!();
+    
+    // Run for 30 seconds with event loop
+    println!("Running for 30 seconds (accepting Wayland clients)...");
+    let start = std::time::Instant::now();
+    let duration = std::time::Duration::from_secs(30);
+    
+    while start.elapsed() < duration {
+        // Check for new client connections
+        if let Ok(Some(stream)) = socket.accept() {
+            // Insert client into display
+            match display_handle.insert_client(stream, std::sync::Arc::new(())) {
+                Ok(client) => {
+                    println!("✓ New client connected: {:?}", client.id());
+                }
+                Err(e) => {
+                    eprintln!("Error inserting client: {}", e);
+                }
+            }
+        }
+        
+        // Dispatch pending client requests
+        match display.dispatch_clients(&mut ()) {
+            Ok(_) => {},
+            Err(e) => {
+                eprintln!("Error dispatching clients: {}", e);
+            }
+        }
+        
+        // Flush client messages
+        display.flush_clients()?;
+        
+        // Small sleep to avoid busy-waiting
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
     
     println!();
-    println!("Phase 3 complete - Framebuffer rendering successful!");
+    println!("Phase 4 complete - Wayland server ran successfully!");
     Ok(())
 }

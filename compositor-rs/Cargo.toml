@@ -7,6 +7,10 @@ edition = "2021"
 # Phase 2: DRM device initialization
 drm = "0.12"
 
+# Phase 4: Wayland server
+wayland-server = "0.31"
+wayland-backend = "0.3"
+
 [profile.release]
 opt-level = "z"
 lto = true

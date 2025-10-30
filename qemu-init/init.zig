@@ -432,7 +432,7 @@ pub fn main() void {
                 };
                 const envp = [_:null]?[*:0]const u8{
                     "XDG_RUNTIME_DIR=/run/wayland",
-                    "LD_LIBRARY_PATH=/usr/lib:/lib:/lib64",
+                    "LD_LIBRARY_PATH=/usr/lib:/usr/lib/weston:/lib:/lib64",
                     "WAYLAND_DISPLAY=wayland-0",
                     "PATH=/usr/bin:/bin",
                     null

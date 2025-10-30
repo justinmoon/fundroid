@@ -137,15 +137,12 @@ if [ -L "weston-rootfs" ]; then
     
     echo "Weston rootfs included successfully"
     
-    # Copy wayland libraries manually (buildEnv doesn't include .so files)
-    # Find wayland in Nix store (it's a dependency of weston)
-    WAYLAND=$(find /nix/store -maxdepth 1 -name '*-wayland-1.*' -type d 2>/dev/null | grep -v 'protocols' | head -1)
-    if [ -n "$WAYLAND" ] && [ -d "$WAYLAND/lib" ]; then
+    # Copy wayland libraries from local-libs directory if available
+    if [ -d "local-libs" ]; then
         mkdir -p "$WORK_DIR/usr/lib"
-        cp -L "$WAYLAND"/lib/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null
-        echo "  - Copied wayland libraries from $WAYLAND"
-    else
-        echo "  - WARNING: Could not find wayland libraries in /nix/store"
+        chmod -R +w "$WORK_DIR/usr/lib" 2>/dev/null || true
+        cp local-libs/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null && \
+            echo "  - Copied wayland libraries from local-libs"
     fi
 fi
 

@@ -6,17 +6,18 @@ A minimal Wayland compositor written in Rust, following the plan in `docs/rust-w
 
 Basic hello world that cross-compiles from macOS to Linux with static musl linking.
 
-## Phase 2: DRM Device Initialization 🚧
+## Phase 2: DRM Device Initialization ✅
 
-Implemented DRM device opening and mode enumeration using `drm` crate v0.12.
+Successfully implemented and tested DRM device opening and mode enumeration using `drm` crate v0.12.
 
 ### Features
 
-- Opens `/dev/dri/card0`
-- Enumerates DRM resources (connectors, encoders, CRTCs, framebuffers)
-- Lists available display modes with resolution and refresh rate
-- Proper error handling with Rust Result types
-- Integrated with qemu-init system (`gfx=compositor-rs`)
+- Opens `/dev/dri/card0` ✅
+- Enumerates DRM resources (connectors, encoders, CRTCs, framebuffers) ✅
+- Lists 26 display modes (640x480 @ 120Hz up to 5120x2160 @ 50Hz) ✅
+- Proper error handling with Rust Result types ✅
+- Integrated with qemu-init system (`gfx=compositor-rs`) ✅
+- Tested in QEMU with virtio-gpu ✅
 
 ### Building
 
@@ -40,13 +41,37 @@ nix develop --accept-flake-config --command bash -c 'cd compositor-rs && cargo b
 - **Target**: x86_64-unknown-linux-musl
 - **Location**: `target/x86_64-unknown-linux-musl/release/compositor-rs`
 
-### Testing Status
+### Testing in QEMU
 
-**Code complete** but QEMU testing blocked on kernel module version mismatch:
-- Debian kernel 6.12.43 requires virtio-gpu module
-- Available modules are built for 6.12.44
-- Need matching kernel modules or kernel with CONFIG_DRM_VIRTIO_GPU=y built-in
+**✅ Working** - Requires NixOS kernel 6.12.44 (copy from main repo):
+
+```bash
+# Copy matching kernel (6.12.44)
+cp /Users/justin/code/boom/qemu-init/bzImage qemu-init/
+
+# Build and test
+cd qemu-init
+./build.sh && ./build-initramfs.sh
+./run.sh --gui gfx=compositor-rs
+```
+
+**Expected output:**
+```
+✓ Successfully opened /dev/dri/card0
+✓ Found resources:
+  - Connectors: 1
+  - Encoders: 1
+  - CRTCs: 1
+
+Connector 0: Virtual (Connected)
+  Available modes (26):
+    [0] 640x480 @ 120Hz
+    [1] 5120x2160 @ 50Hz
+    ...
+
+Phase 2 complete - DRM device enumeration successful
+```
 
 ### Next Steps
 
-Phase 3 will add framebuffer allocation and rendering (requires working DRM device).
+Phase 3 will add framebuffer allocation and rendering to display a solid color on screen.

@@ -87,6 +87,40 @@ fn spawnChild() void {
     print("[SPAWN] Child process started with PID {d}\n", .{pid});
 }
 
+fn startSeatd() i32 {
+    print("[SEATD] Starting seat management daemon...\n", .{});
+    
+    const pid = linux.fork();
+    if (pid < 0) {
+        print("[ERROR] Failed to fork for seatd\n", .{});
+        return -1;
+    }
+
+    if (pid == 0) {
+        // Child process - exec seatd
+        const argv = [_:null]?[*:0]const u8{ 
+            "/usr/bin/seatd",
+            "-n",  // Non-forking mode (stay in foreground)
+            null 
+        };
+        const envp = [_:null]?[*:0]const u8{
+            "SEATD_VTBOUND=1",  // Tell seatd we're bound to a VT
+            null
+        };
+        _ = linux.execve("/usr/bin/seatd", &argv, &envp);
+        print("[ERROR] Failed to exec seatd\n", .{});
+        posix.exit(1);
+    }
+
+    // Parent process - seatd started
+    print("[SEATD] Started with PID {d}\n", .{pid});
+    
+    // Give seatd a moment to initialize and create its socket
+    posix.nanosleep(0, 100_000_000); // 100ms
+    
+    return @intCast(pid);
+}
+
 fn loadKernelModules() void {
     const modules = [_][]const u8{
         "/lib/modules/virtio.ko",
@@ -335,6 +369,16 @@ pub fn main() void {
     if (weston_ini_test) |fd| {
         posix.close(fd);
         print("[PHASE 4 TEST] SUCCESS: /etc/weston.ini exists!\n", .{});
+    }
+    
+    // [PHASE 5] Start seatd (seat management daemon)
+    // This must be started BEFORE Weston, as it manages device permissions
+    print("\n[PHASE 5] Starting seatd for device access management...\n", .{});
+    const seatd_pid = startSeatd();
+    if (seatd_pid > 0) {
+        print("[PHASE 5] seatd is running, Weston will be able to access devices\n", .{});
+    } else {
+        print("[PHASE 5] WARNING: seatd failed to start, Weston may not work\n", .{});
     }
     
     // Check if gfx mode requested

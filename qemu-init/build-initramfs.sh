@@ -103,10 +103,16 @@ if [ -L "weston-rootfs" ]; then
         mkdir -p "$WORK_DIR/lib64"
         
         # Find and copy a working dynamic linker
+        # First try from weston-rootfs, then from local drm_rect libs
         INTERP=$(find weston-rootfs -name "ld-linux-x86-64.so.2" -type f 2>/dev/null | head -1)
+        if [ -z "$INTERP" ] && [ -f "ld-linux-x86-64.so.2" ]; then
+            INTERP="ld-linux-x86-64.so.2"
+        fi
         if [ -n "$INTERP" ]; then
             cp "$INTERP" "$WORK_DIR/lib64/ld-linux-x86-64.so.2"
             echo "  - Copied dynamic linker to /lib64"
+        else
+            echo "  - WARNING: Could not find ld-linux-x86-64.so.2"
         fi
         
         # Patch all binaries in /usr/bin

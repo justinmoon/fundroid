@@ -146,16 +146,12 @@ if [ -f "rootfs/etc/weston.ini" ]; then
 fi
 
 # Include start-weston script
-echo "DEBUG: Checking for rootfs/usr/bin/start-weston..."
 if [ -f "rootfs/usr/bin/start-weston" ]; then
-    echo "DEBUG: Found start-weston, copying to $WORK_DIR/usr/bin/"
     mkdir -p "$WORK_DIR/usr/bin"
+    chmod -R +w "$WORK_DIR/usr/bin" 2>/dev/null || true  # Make writable if from Nix store
     cp rootfs/usr/bin/start-weston "$WORK_DIR/usr/bin/start-weston"
     chmod +x "$WORK_DIR/usr/bin/start-weston"
     echo "Including start-weston script"
-    ls -l "$WORK_DIR/usr/bin/start-weston"
-else
-    echo "DEBUG: start-weston NOT FOUND"
 fi
 
 cd "$WORK_DIR"

@@ -70,28 +70,28 @@ if [ -L "weston-rootfs" ]; then
     echo "Including weston-rootfs in initramfs..."
     mkdir -p "$WORK_DIR/usr"
     
-    # Copy binaries
+    # Copy binaries (follow symlinks with -L to get actual files)
     if [ -d "weston-rootfs/bin" ]; then
-        cp -r weston-rootfs/bin "$WORK_DIR/usr/"
+        cp -rL weston-rootfs/bin "$WORK_DIR/usr/"
         echo "  - Copied binaries"
     fi
     
-    # Copy libraries
+    # Copy libraries (follow symlinks with -L to get actual files)
     if [ -d "weston-rootfs/lib" ]; then
-        cp -r weston-rootfs/lib "$WORK_DIR/usr/"
+        cp -rL weston-rootfs/lib "$WORK_DIR/usr/"
         echo "  - Copied libraries"
     fi
     
     # Copy shared resources (fonts, icons, etc.)
     if [ -d "weston-rootfs/share" ]; then
-        cp -r weston-rootfs/share "$WORK_DIR/usr/"
+        cp -rL weston-rootfs/share "$WORK_DIR/usr/"
         echo "  - Copied shared resources"
     fi
     
     # Copy etc configs
     if [ -d "weston-rootfs/etc" ]; then
         mkdir -p "$WORK_DIR/etc"
-        cp -r weston-rootfs/etc/* "$WORK_DIR/etc/" 2>/dev/null || true
+        cp -rL weston-rootfs/etc/* "$WORK_DIR/etc/" 2>/dev/null || true
         echo "  - Copied configuration files"
     fi
     

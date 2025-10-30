@@ -137,17 +137,16 @@ if [ -L "weston-rootfs" ]; then
     
     echo "Weston rootfs included successfully"
     
-    # Copy wayland libraries manually (buildEnv doesn't include them properly)
-    # Find wayland store path from the weston-rootfs symlink
-    for store_path in $(find weston-rootfs -type l -exec readlink {} \; 2>/dev/null | grep '/nix/store' | cut -d/ -f1-4 | sort -u); do
-        if [[ "$store_path" == *"/wayland-"* ]] && [[ "$store_path" != *"protocols"* ]]; then
-            if [ -d "$store_path/lib" ]; then
-                mkdir -p "$WORK_DIR/usr/lib"
-                cp -L "$store_path"/lib/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null && \
-                    echo "  - Copied wayland libraries from $store_path" && break
-            fi
-        fi
-    done
+    # Copy wayland libraries manually (buildEnv doesn't include .so files)
+    # Find wayland in Nix store (it's a dependency of weston)
+    WAYLAND=$(find /nix/store -maxdepth 1 -name '*-wayland-1.*' -type d 2>/dev/null | grep -v 'protocols' | head -1)
+    if [ -n "$WAYLAND" ] && [ -d "$WAYLAND/lib" ]; then
+        mkdir -p "$WORK_DIR/usr/lib"
+        cp -L "$WAYLAND"/lib/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null
+        echo "  - Copied wayland libraries from $WAYLAND"
+    else
+        echo "  - WARNING: Could not find wayland libraries in /nix/store"
+    fi
 fi
 
 # Include custom weston.ini configuration

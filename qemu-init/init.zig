@@ -104,6 +104,7 @@ fn startSeatd() i32 {
             null 
         };
         const envp = [_:null]?[*:0]const u8{
+            "LD_LIBRARY_PATH=/usr/lib",  // Find shared libraries
             "SEATD_VTBOUND=1",  // Tell seatd we're bound to a VT
             null
         };

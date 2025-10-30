@@ -149,54 +149,70 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 ---
 
-### Phase 3: Framebuffer Allocation
+### Phase 3: Framebuffer Allocation ✅
 **Goal:** Create a DRM framebuffer we can render into.
 
+**Status:** ✅ COMPLETE - Successfully renders solid orange screen in QEMU!
+
 **Tasks:**
-1. Use `gbm` crate to create buffer manager
-2. Allocate a dumb buffer (CPU-accessible)
-3. Create DRM framebuffer object
-4. Map buffer to memory
-5. Fill with solid color (like drm_rect did)
-6. Set CRTC to display framebuffer
+1. ✅ Find connected connector and select display mode
+2. ✅ Get encoder and CRTC handles
+3. ✅ Allocate dumb buffer (CPU-accessible) at screen resolution
+4. ✅ Create DRM framebuffer object
+5. ✅ Map buffer to memory
+6. ✅ Fill with solid color (orange like drm_rect)
+7. ✅ Set CRTC to display framebuffer
+8. ✅ Display for 10 seconds so result is visible
 
 **Key code:**
 ```rust
-use gbm::{Device as GbmDevice, BufferObjectFlags};
-
-// Create GBM device
-let gbm = GbmDevice::new(drm)?;
-
-// Allocate buffer
-let bo = gbm.create_buffer_object::<()>(
-    width, height,
-    gbm::Format::Xrgb8888,
-    BufferObjectFlags::RENDERING | BufferObjectFlags::SCANOUT
+// Create dumb buffer (no GBM needed - simpler!)
+let mut db = card.create_dumb_buffer(
+    (width as u32, height as u32),
+    DrmFourcc::Xrgb8888,
+    32
 )?;
 
-// Map and fill with color
-let map = bo.map(...)?;
-for pixel in map.as_mut_slice() {
-    *pixel = 0xFF0000; // Red
+// Create framebuffer
+let fb_handle = card.add_framebuffer(&db, 24, 32)?;
+
+// Map and fill with orange color
+let mut map = card.map_dumb_buffer(&mut db)?;
+let pixels = unsafe {
+    std::slice::from_raw_parts_mut(
+        map.as_mut_ptr() as *mut u32,
+        (width * height) as usize
+    )
+};
+for pixel in pixels.iter_mut() {
+    *pixel = 0x00FF8800; // Orange (XRGB8888)
 }
 
-// Create framebuffer and display
-let fb = drm.add_framebuffer(&bo, ...)?;
-drm.set_crtc(crtc, fb, ...)?;
+// Display framebuffer
+card.set_crtc(
+    crtc_handle,
+    Some(fb_handle),
+    (0, 0),
+    &[connector_handle],
+    Some(mode),
+)?;
 ```
 
 **Acceptance Criteria:**
-- [ ] GBM device created successfully
-- [ ] Buffer allocated at screen resolution
-- [ ] Memory mapping works
-- [ ] Solid color fills buffer
-- [ ] QEMU window shows colored screen
-- [ ] Color persists (no flickering)
+- [x] Dumb buffer created at screen resolution (640x480)
+- [x] Memory mapping works (unsafe slice from mmap)
+- [x] Solid color fills buffer (orange 0x00FF8800)
+- [x] QEMU window shows orange screen ✅
+- [x] Framebuffer displays correctly via set_crtc
+- [x] No errors or panics during execution
+- [x] Binary size remains small (400KB)
 
-**What you'll learn:**
-- GBM buffer management
-- Memory mapping in Rust
-- DRM framebuffer creation
+**What you learned:**
+- DRM dumb buffer API (simpler than GBM for CPU rendering)
+- Memory mapping with mmap in Rust (unsafe but necessary)
+- DRM framebuffer creation and CRTC configuration
+- XRGB8888 pixel format (little-endian)
+- Rust matches C/Zig for low-level graphics programming!
 
 ---
 

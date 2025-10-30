@@ -1,0 +1,7 @@
+init
+init.o
+initramfs.cpio.gz
+*.cache
+bzImage
+vmlinuz*
+.helix

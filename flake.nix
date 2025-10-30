@@ -77,6 +77,10 @@
             pkgs.fakeroot
             pkgs.lz4
             androidSdkEnv
+            # QEMU init learning environment
+            pkgs.zig
+            pkgs.qemu
+            # Note: kernel can't be built on macOS, we download pre-built instead
           ];
           shellHook = ''
             export JAVA_HOME="${pkgs.jdk17_headless}"

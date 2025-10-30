@@ -99,9 +99,9 @@ fn startSeatd() i32 {
 
     if (pid == 0) {
         // Child process - exec seatd
+        // Note: Running without -n flag - seatd will fork but we track the parent PID
         const argv = [_:null]?[*:0]const u8{ 
             "/usr/bin/seatd",
-            "-n",  // Non-forking mode (stay in foreground)
             null 
         };
         const envp = [_:null]?[*:0]const u8{

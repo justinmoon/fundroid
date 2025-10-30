@@ -32,9 +32,16 @@ QEMU eliminates all that and lets us focus on core concepts.
 - PID 1 must never exit (or kernel panics)
 - Console/TTY basics (ttyS0 for serial)
 
+**Acceptance Criteria:**
+- ✅ `./run.sh` boots without kernel panic
+- ✅ Output shows "QEMU MINIMAL INIT" banner
+- ✅ Output shows `PID: 1`
+- ✅ At least 3 heartbeat messages printed with incrementing timestamps
+- ✅ System stays running until timeout (doesn't crash or exit)
+
 ## Next Steps
 
-### Phase 2: Filesystem Setup
+### ✅ Phase 2: Filesystem Setup (COMPLETE)
 **Goal:** Mount essential filesystems that any real init needs.
 
 **Tasks:**
@@ -49,7 +56,15 @@ QEMU eliminates all that and lets us focus on core concepts.
 - How to use mount syscalls
 - What each filesystem provides
 
-**Test:** Init should mount all three and print proof it worked.
+**Acceptance Criteria:**
+- ✅ Output shows "[OK] Mounted /proc (process information)"
+- ✅ Output shows "[OK] Mounted /sys (kernel/device info)"
+- ✅ Output shows "[OK] Mounted /dev (device nodes)"
+- ✅ Successfully reads `/proc/self/status` and prints "Pid: 1"
+- ✅ Counts and prints device count in /dev (should be > 50)
+- ✅ Output shows "[SUCCESS] All filesystems mounted and verified!"
+- ✅ No mount errors in output
+- ✅ Heartbeat continues after filesystem setup
 
 ### Phase 3: Signal Handling
 **Goal:** Handle signals properly (required for real init).
@@ -66,7 +81,16 @@ QEMU eliminates all that and lets us focus on core concepts.
 - Proper shutdown sequence
 - Zombie process reaping
 
-**Test:** Send SIGTERM, verify clean unmount and exit.
+**Acceptance Criteria:**
+- [ ] Output shows "Signal handler installed for SIGTERM"
+- [ ] Output shows "Signal handler installed for SIGCHLD"
+- [ ] `kill -TERM <qemu-pid>` triggers graceful shutdown
+- [ ] Output shows "Received SIGTERM, shutting down..."
+- [ ] Output shows "Unmounting /proc", "Unmounting /sys", "Unmounting /dev"
+- [ ] No "failed to unmount" errors
+- [ ] Output shows "Shutdown complete" before exit
+- [ ] Process exits with code 0
+- [ ] Verify with `echo $?` that exit code is 0
 
 ### Phase 4: Process Management
 **Goal:** Spawn and manage child processes.
@@ -83,7 +107,18 @@ QEMU eliminates all that and lets us focus on core concepts.
 - Process supervision
 - Respawn logic
 
-**Test:** Init spawns a child that prints and exits, init reaps it and respawns.
+**Acceptance Criteria:**
+- [ ] Create a test binary that prints "Hello from child" and exits
+- [ ] Include test binary in initramfs
+- [ ] Output shows "Spawning child process: /test_child"
+- [ ] Output shows child's output: "Hello from child"
+- [ ] Output shows "Child process PID <pid> exited with status 0"
+- [ ] Output shows "Respawning child process in 1 second..."
+- [ ] Child is respawned at least 3 times
+- [ ] Each respawn shows a new PID
+- [ ] No zombie processes (verify `/proc/self/status` shows Threads: 1)
+- [ ] SIGCHLD handler successfully reaps all children
+- [ ] Heartbeat continues between child respawns
 
 ### Phase 5: Service Management (Optional)
 **Goal:** Basic service supervision.
@@ -99,39 +134,18 @@ QEMU eliminates all that and lets us focus on core concepts.
 - Health checking
 - Graceful shutdown
 
-**Test:** Start 2-3 dummy services, kill one, watch it respawn.
+**Acceptance Criteria:**
+- [ ] Create `services.conf` listing 3 test services
+- [ ] Include services.conf in initramfs
+- [ ] Output shows "Loading service configuration from /services.conf"
+- [ ] Output shows "Starting service: service1" (for each service)
+- [ ] All 3 services show PID assigned
+- [ ] From host, identify one child PID and `kill -9 <pid>`
+- [ ] Output shows "Service service1 (PID <pid>) crashed with signal 9"
+- [ ] Output shows "Restarting service: service1"
+- [ ] Service1 gets a new PID
+- [ ] Other services continue running unaffected
+- [ ] On SIGTERM, output shows "Stopping services in reverse order..."
+- [ ] Each service terminated gracefully before unmounting filesystems
+- [ ] Output shows final service count: "All 3 services stopped"
 
-## Phase 6: Apply to Cuttlefish
-
-**Goal:** Take everything learned and fix the original Android init problem.
-
-**Tasks:**
-1. Review `heartbeat-init/heartbeat_init.c` with new understanding
-2. Identify what's missing or broken
-3. Apply fixes based on what we learned in QEMU
-4. Test on Cuttlefish
-5. Iterate until it works
-
-**Key differences to handle:**
-- Android expects specific mounts
-- SELinux contexts
-- Property service
-- May need to chain to stock init eventually
-
-## Decision Points
-
-At each phase, you can:
-- **Continue learning:** Move to next phase in QEMU
-- **Apply now:** Jump to Cuttlefish and use current knowledge
-- **Iterate:** Go back and improve earlier phases
-
-The QEMU environment stays simple and fast for experimentation. Once you understand the concepts, applying them to Android becomes much clearer.
-
-## Current Question
-
-**Where do you want to go next?**
-1. Phase 2: Add filesystem mounts in QEMU
-2. Jump to Cuttlefish now and apply current knowledge
-3. Something else?
-
-The incremental approach means you can learn at your own pace and always have a working system to refer back to.

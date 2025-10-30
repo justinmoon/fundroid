@@ -1,66 +1,132 @@
 //! MINIMAL LINUX INIT - Educational PID 1 Implementation
 //! =====================================================
 //!
-//! This is the SIMPLEST possible init process for Linux.
-//! The kernel will execute this as PID 1 after booting.
+//! Phase 2: Filesystem Setup
+//!
+//! This init now mounts the essential filesystems that any real init needs:
+//! - /proc: Process information (virtual filesystem)
+//! - /sys: Kernel/device information (sysfs)
+//! - /dev: Device nodes (devtmpfs)
 //!
 //! WHAT IS PID 1?
 //! - The first userspace process the kernel starts
 //! - Must never exit (or kernel panics)
 //! - Responsible for initial system setup
 //! - In real systems: systemd, sysvinit, etc.
-//!
-//! WHAT THIS PROGRAM DOES:
-//! 1. Prints a message to prove it's running
-//! 2. Loops forever printing timestamps
-//! 3. Never exits (critical for PID 1!)
-//!
-//! WHAT THIS PROGRAM DOESN'T DO:
-//! - No filesystem mounting (not needed in initramfs)
-//! - No device setup (devtmpfs does this automatically)
-//! - No signal handling (keeping it simple)
-//! - No child process reaping (no children to reap)
 
 const std = @import("std");
 const posix = std.posix;
 const linux = std.os.linux;
 
-/// Simple print function for init - writes directly to stdout (fd 1)
-/// We use this because Zig 0.15 changed the I/O APIs and this is the simplest approach.
 fn print(comptime fmt: []const u8, args: anytype) void {
     var buf: [1024]u8 = undefined;
     const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
     _ = posix.write(1, msg) catch return;
 }
 
+fn mountFilesystem(source: [*:0]const u8, target: [*:0]const u8, fstype: [*:0]const u8, flags: u32) !void {
+    const result = linux.mount(source, target, fstype, flags, 0);
+    return switch (linux.E.init(result)) {
+        .SUCCESS => {},
+        .ACCES => error.AccessDenied,
+        .BUSY => error.DeviceBusy,
+        .FAULT => error.BadAddress,
+        .INVAL => error.InvalidArgument,
+        .LOOP => error.LoopDetected,
+        .MFILE => error.TooManyLinks,
+        .NAMETOOLONG => error.NameTooLong,
+        .NODEV => error.NoDevice,
+        .NOENT => error.FileNotFound,
+        .NOMEM => error.OutOfMemory,
+        .NOTBLK => error.NotBlockDevice,
+        .NOTDIR => error.NotDir,
+        .NXIO => error.NoSuchDeviceOrAddress,
+        .PERM => error.OperationNotPermitted,
+        else => |err| std.posix.unexpectedErrno(err),
+    };
+}
+
+fn createDirectory(path: [*:0]const u8) void {
+    _ = linux.mkdir(path, 0o755);
+}
+
 pub fn main() void {
-    // Announce we've started. If you see this message, it means:
-    // - The kernel successfully loaded our initramfs
-    // - The kernel found and executed our init binary
-    // - We're running as PID 1
     print("========================================\n", .{});
-    print("QEMU MINIMAL INIT - Learning Exercise (Zig)\n", .{});
+    print("QEMU MINIMAL INIT - Phase 2: Filesystem Setup\n", .{});
     print("========================================\n", .{});
     print("PID: {d} (should be 1)\n", .{linux.getpid()});
+    print("\n", .{});
+    
+    print("[PHASE 2] Mounting essential filesystems...\n", .{});
+    
+    createDirectory("/proc");
+    createDirectory("/sys");
+    createDirectory("/dev");
+    
+    mountFilesystem("proc", "/proc", "proc", linux.MS.NODEV | linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
+        print("[ERROR] Failed to mount /proc: {s}\n", .{@errorName(err)});
+    };
+    print("[OK] Mounted /proc (process information)\n", .{});
+    
+    mountFilesystem("sysfs", "/sys", "sysfs", linux.MS.NODEV | linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
+        print("[ERROR] Failed to mount /sys: {s}\n", .{@errorName(err)});
+    };
+    print("[OK] Mounted /sys (kernel/device info)\n", .{});
+    
+    mountFilesystem("devtmpfs", "/dev", "devtmpfs", linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
+        print("[ERROR] Failed to mount /dev: {s}\n", .{@errorName(err)});
+    };
+    print("[OK] Mounted /dev (device nodes)\n", .{});
+    
+    print("\n[VERIFY] Reading /proc/self/status to confirm PID...\n", .{});
+    const status_fd = posix.open("/proc/self/status", .{ .ACCMODE = .RDONLY }, 0) catch {
+        print("[ERROR] Failed to open /proc/self/status\n", .{});
+        return;
+    };
+    defer posix.close(status_fd);
+    
+    var buf: [1024]u8 = undefined;
+    const n = posix.read(status_fd, &buf) catch 0;
+    if (n > 0) {
+        print("[OK] Successfully read /proc/self/status ({d} bytes)\n", .{n});
+        var lines = std.mem.splitScalar(u8, buf[0..n], '\n');
+        while (lines.next()) |line| {
+            if (std.mem.startsWith(u8, line, "Pid:")) {
+                print("  {s}\n", .{line});
+                break;
+            }
+        }
+    }
+    
+    print("\n[VERIFY] Counting devices in /dev...\n", .{});
+    const dev_dir = posix.open("/dev", .{ .ACCMODE = .RDONLY, .DIRECTORY = true }, 0) catch {
+        print("[ERROR] Failed to open /dev\n", .{});
+        return;
+    };
+    defer posix.close(dev_dir);
+    
+    var count: usize = 0;
+    var dir_buf: [4096]u8 = undefined;
+    while (true) {
+        const n_read = linux.getdents64(dev_dir, &dir_buf, dir_buf.len);
+        if (n_read <= 0) break;
+        
+        var offset: usize = 0;
+        while (offset < @as(usize, @intCast(n_read))) {
+            const entry: *linux.dirent64 = @ptrCast(@alignCast(&dir_buf[offset]));
+            if (entry.reclen == 0) break;
+            count += 1;
+            offset += entry.reclen;
+        }
+    }
+    print("[OK] Found {d} entries in /dev\n", .{count});
+    
+    print("\n[SUCCESS] All filesystems mounted and verified!\n", .{});
     print("Starting heartbeat loop...\n\n", .{});
     
-    // INFINITE LOOP - This is CRITICAL for PID 1
-    // If init exits, the kernel panics with "Attempted to kill init!"
-    //
-    // In a real init system, this loop would:
-    // - Monitor and restart services
-    // - Handle signals (SIGTERM, SIGCHLD, etc.)
-    // - Reap zombie processes
-    //
-    // For learning, we just print timestamps to prove we're alive.
     while (true) {
         const timestamp = std.time.timestamp();
         print("[heartbeat] Unix timestamp: {d}\n", .{timestamp});
-        
-        // Sleep for 2 seconds between heartbeats
         posix.nanosleep(2, 0);
     }
-    
-    // We should NEVER reach here!
-    // If we do, the kernel will panic.
 }

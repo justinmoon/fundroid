@@ -260,6 +260,26 @@ pub fn main() void {
 
     print("\n[SUCCESS] All filesystems mounted and verified!\n", .{});
     
+    // [PHASE 2 TEST] Verify Weston rootfs is accessible
+    print("\n[PHASE 2 TEST] Verifying Weston rootfs...\n", .{});
+    const weston_test = posix.open("/usr/bin/weston", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
+        print("[PHASE 2 TEST] FAILED: /usr/bin/weston not found: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (weston_test) |fd| {
+        posix.close(fd);
+        print("[PHASE 2 TEST] SUCCESS: /usr/bin/weston exists!\n", .{});
+    }
+    
+    const seatd_test = posix.open("/usr/bin/seatd", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
+        print("[PHASE 2 TEST] FAILED: /usr/bin/seatd not found: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (seatd_test) |fd| {
+        posix.close(fd);
+        print("[PHASE 2 TEST] SUCCESS: /usr/bin/seatd exists!\n", .{});
+    }
+    
     // Check if gfx mode requested
     if (gfx_mode) |mode| {
         if (std.mem.eql(u8, mode, "drm_rect")) {

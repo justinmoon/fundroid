@@ -3,7 +3,12 @@
 
 set -euo pipefail
 
-# Parse arguments
+# If not in nix shell, re-exec ourselves inside it FIRST (preserve all args)
+if ! command -v qemu-system-x86_64 &> /dev/null; then
+    exec nix develop .. --command bash "$0" "$@"
+fi
+
+# Parse arguments (after entering nix shell)
 GUI_MODE=false
 KERNEL_ARGS=""
 
@@ -24,11 +29,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# If not in nix shell, re-exec ourselves inside it
-if ! command -v qemu-system-x86_64 &> /dev/null; then
-    exec nix develop .. --command bash "$0" "$@"
-fi
 
 # Build if needed
 if [ ! -f init ] || [ init.zig -nt init ]; then
@@ -61,8 +61,12 @@ QEMU_CMD="qemu-system-x86_64 -kernel ./bzImage -initrd initramfs.cpio.gz"
 QEMU_CMD="$QEMU_CMD -append \"console=ttyS0 quiet init=/init panic=1$KERNEL_ARGS\""
 
 if [ "$GUI_MODE" = true ]; then
-    # GUI mode: SDL window with virtio-gpu
-    QEMU_CMD="$QEMU_CMD -display sdl,gl=on"
+    # GUI mode: Use cocoa on macOS, SDL on Linux
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        QEMU_CMD="$QEMU_CMD -display cocoa"
+    else
+        QEMU_CMD="$QEMU_CMD -display sdl,gl=on"
+    fi
     QEMU_CMD="$QEMU_CMD -device virtio-gpu-pci"
     QEMU_CMD="$QEMU_CMD -vga none"
     QEMU_CMD="$QEMU_CMD -serial stdio"

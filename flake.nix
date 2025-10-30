@@ -88,8 +88,8 @@
             # QEMU init learning environment
             pkgs-unstable.zig  # Use latest Zig from unstable
             pkgs.qemu
-            pkgs.libdrm  # For drm_rect.zig
             # Note: kernel can't be built on macOS, we download pre-built instead
+            # Note: libdrm for drm_rect.zig only available on Linux
           ];
           shellHook = ''
             export JAVA_HOME="${pkgs.jdk17_headless}"

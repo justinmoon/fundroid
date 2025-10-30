@@ -111,6 +111,24 @@ pub fn main() void {
     print("PID: {d} (should be 1)\n", .{linux.getpid()});
     print("\n", .{});
 
+    // Parse kernel command line for gfx= parameter
+    var gfx_mode: ?[]const u8 = null;
+    const cmdline_fd = posix.open("/proc/cmdline", .{ .ACCMODE = .RDONLY }, 0) catch null;
+    if (cmdline_fd) |fd| {
+        defer posix.close(fd);
+        var buf: [4096]u8 = undefined;
+        const n = posix.read(fd, &buf) catch 0;
+        if (n > 0) {
+            var args = std.mem.splitScalar(u8, buf[0..n], ' ');
+            while (args.next()) |arg| {
+                if (std.mem.startsWith(u8, arg, "gfx=")) {
+                    gfx_mode = std.mem.trim(u8, arg[4..], &std.ascii.whitespace);
+                    print("[INIT] Graphics mode requested: {s}\n", .{gfx_mode.?});
+                }
+            }
+        }
+    }
+
     installSignalHandlers();
     print("\n", .{});
 

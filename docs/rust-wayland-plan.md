@@ -75,14 +75,16 @@ cargo build --release --target x86_64-unknown-linux-musl
 - [x] Binary is statically linked (static-pie, check with `file` command)
 - [x] Binary size: 377KB (well under 5MB target!)
 - [x] Cross-compilation works from macOS using rust-lld
-- [ ] Can copy binary to initramfs and execute from init (deferred to Phase 2)
-- [ ] Basic logging works (will test in Phase 2 when running in QEMU)
+- [x] Can copy binary to initramfs and execute from init (✅ tested in Phase 2)
+- [x] Basic logging works (✅ all println! statements work in QEMU)
 
 **What you learned:**
 - Rust cross-compilation setup with nix flake
 - Static linking with musl using rust-lld
 - Cargo project structure
 - Nix rust-overlay target configuration
+- Initramfs integration (binary included via build-initramfs.sh)
+- Init system integration (launched via gfx=compositor-rs parameter)
 
 ---
 

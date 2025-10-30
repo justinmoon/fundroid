@@ -417,13 +417,29 @@ pub fn main() void {
             }
         } else if (std.mem.eql(u8, mode, "weston")) {
             print("\n[GFX] Starting Weston compositor...\n", .{});
+            
+            // Create /var/log directory for weston logs
+            createDirectory("/var");
+            createDirectory("/var/log");
+            
             const pid = linux.fork();
             if (pid == 0) {
-                // Child process - exec start-weston script
-                const argv = [_:null]?[*:0]const u8{ "/usr/bin/start-weston", null };
-                const envp = [_:null]?[*:0]const u8{ null };
-                _ = linux.execve("/usr/bin/start-weston", &argv, &envp);
-                print("[ERROR] Failed to exec start-weston\n", .{});
+                // Child process - exec weston directly with proper environment
+                const argv = [_:null]?[*:0]const u8{ 
+                    "/usr/bin/weston",
+                    "--backend=drm-backend.so",
+                    "--log=/var/log/weston.log",
+                    null 
+                };
+                const envp = [_:null]?[*:0]const u8{
+                    "XDG_RUNTIME_DIR=/run/wayland",
+                    "LD_LIBRARY_PATH=/usr/lib:/lib:/lib64",
+                    "WAYLAND_DISPLAY=wayland-0",
+                    "PATH=/usr/bin:/bin",
+                    null
+                };
+                _ = linux.execve("/usr/bin/weston", &argv, &envp);
+                print("[ERROR] Failed to exec weston\n", .{});
                 posix.exit(1);
             } else if (pid > 0) {
                 weston_pid = @intCast(pid);

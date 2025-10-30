@@ -249,3 +249,48 @@ QEMU eliminates all that and lets us focus on core concepts.
 - [ ] `./run.sh --headless` (default) keeps current tests green without needing any `gfx` parameters.
 - [ ] QA scripts fail fast when compositor startup logs contain obvious errors (missing DRM device, seatd failure, etc.).
 - [ ] Switching modes only changes the kernel command line in `run.sh` (`-append "… gfx=weston"`).
+
+---
+
+## Rust Wayland Compositor Experiment
+
+### Phase 10: Pure Rust Compositor (Optional Learning Path)
+**Goal:** Build a minimal Wayland compositor in pure Rust using Smithay to understand modern compositor architecture and compare with Weston.
+
+**Why after Weston:**
+- Weston teaches compositor fundamentals (surfaces, outputs, protocols)
+- With that knowledge, Smithay's abstractions make sense
+- Can directly compare C vs Rust approaches
+- Less risk - Weston already proves DRM/kernel stack works
+
+**What you'll build:**
+- Minimal Smithay-based compositor (~500 lines)
+- Direct DRM rendering (no intermediate backends)
+- Single window support
+- Basic keyboard/mouse input
+- Launched via `gfx=compositor-rs` kernel parameter
+
+**See:** [`docs/rust-wayland-plan.md`](./rust-wayland-plan.md) for detailed implementation plan.
+
+**Acceptance Criteria:**
+- [ ] Rust compositor binary builds and runs in QEMU
+- [ ] Opens `/dev/dri/card0` and initializes DRM
+- [ ] Accepts Wayland client connections on socket
+- [ ] Renders single client window to framebuffer
+- [ ] Mouse and keyboard events work
+- [ ] Can run weston-terminal or similar demo client
+
+**What you'll learn:**
+- Smithay compositor toolkit architecture
+- Rust DRM bindings vs raw C
+- Type-safe Wayland protocol handling
+- Memory safety in graphics programming
+- Modern compositor design patterns
+
+**Not included (future phases):**
+- Vello integration (comes later after basics work)
+- Parley text rendering (after Vello)
+- Multiple window management
+- Advanced shell features
+
+This is purely a learning experiment to understand Rust graphics ecosystem and compare approaches. The primary path remains the C/Weston stack which is production-ready and well-documented.

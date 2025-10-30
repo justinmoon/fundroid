@@ -117,14 +117,19 @@ if [ -L "weston-rootfs" ]; then
         
         # Patch all binaries in /usr/bin
         if [ -d "$WORK_DIR/usr/bin" ]; then
+            PATCHED=0
             for bin in "$WORK_DIR/usr/bin"/*; do
                 if [ -f "$bin" ] && [ -x "$bin" ]; then
                     if patchelf --print-interpreter "$bin" >/dev/null 2>&1; then
-                        patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 "$bin" 2>/dev/null || true
+                        # Make writable in case it's readonly from Nix store
+                        chmod +w "$bin"
+                        if patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 "$bin" 2>/dev/null; then
+                            PATCHED=$((PATCHED + 1))
+                        fi
                     fi
                 fi
             done
-            echo "  - Patched $(find "$WORK_DIR/usr/bin" -type f -executable | wc -l) binaries"
+            echo "  - Successfully patched $PATCHED binaries"
         fi
     else
         echo "  - WARNING: patchelf not found, binaries may not work"

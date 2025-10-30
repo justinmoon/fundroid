@@ -282,6 +282,25 @@ pub fn main() void {
         print("[WARNING] Failed to create /tmp\n", .{});
     }
     
+    // Verify directories were created with correct permissions
+    const run_wayland_stat = posix.open("/run/wayland", .{ .ACCMODE = .RDONLY, .DIRECTORY = true }, 0) catch |err| blk: {
+        print("[ERROR] /run/wayland not accessible: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (run_wayland_stat) |fd| {
+        posix.close(fd);
+        print("[VERIFY] /run/wayland exists and is accessible\n", .{});
+    }
+    
+    const tmp_stat = posix.open("/tmp", .{ .ACCMODE = .RDONLY, .DIRECTORY = true }, 0) catch |err| blk: {
+        print("[ERROR] /tmp not accessible: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (tmp_stat) |fd| {
+        posix.close(fd);
+        print("[VERIFY] /tmp exists and is accessible\n", .{});
+    }
+    
     print("\n[PHASE 3] Runtime environment variables:\n", .{});
     print("  XDG_RUNTIME_DIR=/run/wayland\n", .{});
     print("  LD_LIBRARY_PATH=/usr/lib\n", .{});

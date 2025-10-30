@@ -136,6 +136,14 @@ if [ -L "weston-rootfs" ]; then
     fi
     
     echo "Weston rootfs included successfully"
+    
+    # Copy wayland libraries (needed but not in weston-rootfs/lib for some reason)
+    WAYLAND_STORE=$(nix-store -qR weston-rootfs 2>/dev/null | grep '/wayland-[0-9]' | grep -v protocols | head -1)
+    if [ -n "$WAYLAND_STORE" ] && [ -d "$WAYLAND_STORE/lib" ]; then
+        mkdir -p "$WORK_DIR/usr/lib"
+        cp -L "$WAYLAND_STORE"/lib/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null || true
+        echo "  - Copied wayland libraries from $WAYLAND_STORE"
+    fi
 fi
 
 # Include custom weston.ini configuration

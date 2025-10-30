@@ -20,10 +20,99 @@ impl AsRawFd for Card {
 impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
-use wayland_server::{Display, ListeningSocket};
+use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client};
+use wayland_server::protocol::{wl_compositor, wl_surface, wl_region};
+
+// State that implements all protocol dispatchers
+struct CompositorState;
+
+// Implement Dispatch for wl_compositor
+impl Dispatch<wl_compositor::WlCompositor, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_compositor::WlCompositor,
+        request: wl_compositor::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_compositor::Request::CreateSurface { id } => {
+                println!("✓ Client requested surface creation");
+                let _surface = data_init.init(id, ());
+            }
+            wl_compositor::Request::CreateRegion { id } => {
+                println!("✓ Client requested region creation");
+                let _region = data_init.init(id, ());
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_surface
+impl Dispatch<wl_surface::WlSurface, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_surface::WlSurface,
+        request: wl_surface::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_surface::Request::Attach { buffer, x, y } => {
+                println!("✓ Surface attach: buffer={:?}, offset=({}, {})", buffer, x, y);
+            }
+            wl_surface::Request::Commit => {
+                println!("✓ Surface commit");
+            }
+            wl_surface::Request::Damage { x, y, width, height } => {
+                println!("✓ Surface damage: ({}, {}) {}x{}", x, y, width, height);
+            }
+            _ => {
+                println!("✓ Surface request: {:?}", request);
+            }
+        }
+    }
+}
+
+// Implement Dispatch for wl_region (required by wl_compositor)
+impl Dispatch<wl_region::WlRegion, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_region::WlRegion,
+        _request: wl_region::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        // We don't use regions yet, just silently accept
+    }
+}
+
+// Implement GlobalDispatch for wl_compositor
+use wayland_server::GlobalDispatch;
+
+impl GlobalDispatch<wl_compositor::WlCompositor, ()> for CompositorState {
+    fn bind(
+        _state: &mut Self,
+        _handle: &wayland_server::DisplayHandle,
+        _client: &Client,
+        resource: New<wl_compositor::WlCompositor>,
+        _global_data: &(),
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        println!("✓ Client bound to wl_compositor");
+        data_init.init(resource, ());
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("compositor-rs v0.1.0 - Phase 4: Wayland Server Setup");
+    println!("compositor-rs v0.1.0 - Phase 5: Surface Creation");
     println!();
 
     let card_path = "/dev/dri/card0";
@@ -127,16 +216,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ CRTC configured, displaying framebuffer!");
     println!();
     
-    // Phase 4: Create Wayland server
+    // Phase 5: Create Wayland server with protocol support
     println!("Creating Wayland server...");
     
     // Set XDG_RUNTIME_DIR to /run/wayland
     std::env::set_var("XDG_RUNTIME_DIR", "/run/wayland");
     std::fs::create_dir_all("/run/wayland").ok();
     
-    // Create display (Wayland server instance)
-    let mut display: Display<()> = Display::new()?;
+    // Create display with CompositorState
+    let mut display: Display<CompositorState> = Display::new()?;
     let mut display_handle = display.handle();
+    
+    // Create wl_compositor global (version 6)
+    display_handle.create_global::<CompositorState, wl_compositor::WlCompositor, _>(6, ());
+    println!("✓ Created wl_compositor global (v6)");
     
     // Create listening socket
     let socket = ListeningSocket::bind("wayland-0")?;
@@ -149,13 +242,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Compositor ready!");
     println!("  - Display: Orange screen at 640x480");
     println!("  - Socket: /run/wayland/{}", socket_name);
+    println!("  - Globals: wl_compositor v6");
     println!("  - Clients can connect via WAYLAND_DISPLAY={}", socket_name);
     println!();
     
     // Run for 30 seconds with event loop
-    println!("Running for 30 seconds (accepting Wayland clients)...");
+    println!("Running for 30 seconds (accepting Wayland clients & surfaces)...");
     let start = std::time::Instant::now();
     let duration = std::time::Duration::from_secs(30);
+    let mut state = CompositorState;
     
     while start.elapsed() < duration {
         // Check for new client connections
@@ -172,7 +267,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         
         // Dispatch pending client requests
-        match display.dispatch_clients(&mut ()) {
+        match display.dispatch_clients(&mut state) {
             Ok(_) => {},
             Err(e) => {
                 eprintln!("Error dispatching clients: {}", e);
@@ -187,6 +282,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     println!();
-    println!("Phase 4 complete - Wayland server ran successfully!");
+    println!("Phase 5 complete - Surface protocol handled successfully!");
     Ok(())
 }

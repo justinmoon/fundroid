@@ -375,6 +375,17 @@ pub fn main() void {
         print("[PHASE 4 TEST] SUCCESS: /etc/weston.ini exists!\n", .{});
     }
     
+    // [PHASE 6 TEST] Verify Weston startup script is accessible
+    print("\n[PHASE 6 TEST] Verifying Weston startup script...\n", .{});
+    const start_weston_test = posix.open("/usr/bin/start-weston", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
+        print("[PHASE 6 TEST] FAILED: /usr/bin/start-weston not found: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (start_weston_test) |fd| {
+        posix.close(fd);
+        print("[PHASE 6 TEST] SUCCESS: /usr/bin/start-weston exists!\n", .{});
+    }
+    
     // [PHASE 5] Start seatd (seat management daemon)
     // This must be started BEFORE Weston, as it manages device permissions
     print("\n[PHASE 5] Starting seatd for device access management...\n", .{});

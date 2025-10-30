@@ -145,6 +145,14 @@ if [ -f "rootfs/etc/weston.ini" ]; then
     echo "Including custom weston.ini configuration"
 fi
 
+# Include start-weston script
+if [ -f "rootfs/usr/bin/start-weston" ]; then
+    mkdir -p "$WORK_DIR/usr/bin"
+    cp rootfs/usr/bin/start-weston "$WORK_DIR/usr/bin/start-weston"
+    chmod +x "$WORK_DIR/usr/bin/start-weston"
+    echo "Including start-weston script"
+fi
+
 cd "$WORK_DIR"
 find . | cpio --create --format=newc --quiet | gzip > "$OLDPWD/initramfs.cpio.gz"
 cd "$OLDPWD"

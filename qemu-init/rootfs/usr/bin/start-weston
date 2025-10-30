@@ -1,0 +1,27 @@
+#!/bin/sh
+# Weston compositor startup script for QEMU virtio-gpu
+
+# Exit on any error
+set -e
+
+# Environment setup for Weston
+export XDG_RUNTIME_DIR=/run/wayland
+export LD_LIBRARY_PATH=/usr/lib
+export WAYLAND_DISPLAY=wayland-0
+export PATH=/usr/bin:/bin
+
+# Create log directory
+mkdir -p /var/log
+
+# Log our environment for debugging
+echo "[WESTON] Starting Weston compositor..."
+echo "[WESTON] XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+echo "[WESTON] LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+echo "[WESTON] WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+
+# Start Weston with DRM backend
+# --backend=drm-backend.so - Use DRM/KMS for direct kernel access
+# --log=/var/log/weston.log - Write logs for debugging
+exec /usr/bin/weston \
+    --backend=drm-backend.so \
+    --log=/var/log/weston.log

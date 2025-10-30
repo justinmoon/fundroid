@@ -3,6 +3,11 @@ use drm::buffer::DrmFourcc;
 use std::fs::{File, OpenOptions};
 use std::os::unix::io::{AsFd, AsRawFd, RawFd};
 
+// Constants for VT mode switching
+const KDSETMODE: libc::c_int = 0x4B3A;
+const KD_GRAPHICS: libc::c_int = 1;
+const KD_TEXT: libc::c_int = 0;
+
 struct Card(File);
 
 impl AsFd for Card {
@@ -133,6 +138,9 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
         let buf_height = buf_data.height as usize;
         let stride_pixels = (buf_data.stride / 4) as usize;
         
+        println!("  → Copying {}x{} buffer to framebuffer at (0,0)", buf_width, buf_height);
+        println!("  → Framebuffer size: {}x{}", fb_width, drm.mode.size().1);
+        
         for y in 0..buf_height.min(drm.mode.size().1 as usize) {
             for x in 0..buf_width.min(fb_width) {
                 let src_idx = y * stride_pixels + x;
@@ -143,6 +151,12 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
             }
         }
         
+        // Explicitly drop the map to ensure changes are flushed
+        drop(fb_map);
+        drop(db_mut);
+        
+        println!("  → Pixel copy complete, updating display...");
+        
         // Update CRTC to display new content
         card.set_crtc(
             drm.crtc_handle,
@@ -151,6 +165,8 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
             &[drm.connector_handle],
             Some(drm.mode),
         )?;
+        
+        println!("  → Display updated via set_crtc");
     }
     
     // Unmap the SHM buffer
@@ -525,6 +541,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Buffer filled with orange color");
     println!();
     
+    // Disable kernel console before setting CRTC
+    // IMPORTANT: Keep tty_fd open for the entire lifetime to prevent console from re-enabling
+    println!("Disabling kernel console (switching to graphics mode)...");
+    let tty_fd = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/tty0")
+        .or_else(|_| OpenOptions::new().read(true).write(true).open("/dev/tty1"))?;
+    
+    unsafe {
+        if libc::ioctl(tty_fd.as_raw_fd(), KDSETMODE, KD_GRAPHICS) < 0 {
+            eprintln!("Warning: Failed to set console to graphics mode");
+        } else {
+            println!("✓ Console switched to graphics mode");
+        }
+    }
+    
+    // Also unbind fbcon from the framebuffer to prevent kernel from drawing console text
+    // This prevents the "Console: switching to colour frame buffer device" from overwriting our graphics
+    println!("Unbinding fbcon from framebuffer...");
+    if let Ok(_) = std::fs::write("/sys/class/vtconsole/vtcon1/bind", "0") {
+        println!("✓ fbcon unbound");
+    } else {
+        println!("  (fbcon unbind failed or not needed)");
+    }
+    println!();
+    
     // Set CRTC to display framebuffer
     println!("Setting CRTC to display framebuffer...");
     card.set_crtc(
@@ -581,10 +624,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         db: RefCell::new(db),  // Wrap in RefCell for interior mutability
     };
     
-    // Run for 30 seconds with event loop
-    println!("Running for 30 seconds (accepting Wayland clients & rendering buffers)...");
+    // Run for 60 seconds with event loop (longer to debug rendering)
+    println!("Running for 60 seconds (accepting Wayland clients & rendering buffers)...");
+    println!("  NOTE: Orange screen should remain visible until client renders");
+    println!();
     let start = std::time::Instant::now();
-    let duration = std::time::Duration::from_secs(30);
+    let duration = std::time::Duration::from_secs(60);
     let mut state = CompositorState {
         surfaces: Arc::new(Mutex::new(HashMap::new())),
         shm_pools: Arc::new(Mutex::new(HashMap::new())),
@@ -619,6 +664,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         // Small sleep to avoid busy-waiting
         std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    
+    // Restore console on exit
+    unsafe {
+        if libc::ioctl(tty_fd.as_raw_fd(), KDSETMODE, KD_TEXT) < 0 {
+            eprintln!("Warning: Failed to restore console to text mode");
+        } else {
+            println!("\n✓ Console restored to text mode");
+        }
     }
     
     println!();

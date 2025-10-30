@@ -266,6 +266,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("- Submitted buffer to compositor");
         println!("- Received frame callback");
         println!("\nPhase 6: 11/11 acceptance criteria met! 🎉");
+        println!("\n[client] Keeping gradient visible for 10 seconds...");
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        println!("[client] Exiting...");
         Ok(())
     } else {
         println!("===========================================");

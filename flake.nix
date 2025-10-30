@@ -89,6 +89,7 @@
             # QEMU init learning environment
             pkgs-unstable.zig  # Use latest Zig from unstable
             pkgs.qemu
+            pkgs.patchelf  # For fixing dynamic linker paths in initramfs
             # Note: kernel can't be built on macOS, we download pre-built instead
             # Note: libdrm for drm_rect.zig only available on Linux
           ];

@@ -95,6 +95,35 @@ if [ -L "weston-rootfs" ]; then
         echo "  - Copied configuration files"
     fi
     
+    # Fix dynamic linker paths for Nix-built binaries
+    # Nix binaries have interpreter paths like /nix/store/.../ld-linux-x86-64.so.2
+    # We need to patch them to use /lib64/ld-linux-x86-64.so.2
+    if command -v patchelf >/dev/null 2>&1; then
+        echo "  - Patching ELF binaries to use /lib64/ld-linux-x86-64.so.2"
+        mkdir -p "$WORK_DIR/lib64"
+        
+        # Find and copy a working dynamic linker
+        INTERP=$(find weston-rootfs -name "ld-linux-x86-64.so.2" -type f 2>/dev/null | head -1)
+        if [ -n "$INTERP" ]; then
+            cp "$INTERP" "$WORK_DIR/lib64/ld-linux-x86-64.so.2"
+            echo "  - Copied dynamic linker to /lib64"
+        fi
+        
+        # Patch all binaries in /usr/bin
+        if [ -d "$WORK_DIR/usr/bin" ]; then
+            for bin in "$WORK_DIR/usr/bin"/*; do
+                if [ -f "$bin" ] && [ -x "$bin" ]; then
+                    if patchelf --print-interpreter "$bin" >/dev/null 2>&1; then
+                        patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 "$bin" 2>/dev/null || true
+                    fi
+                fi
+            done
+            echo "  - Patched $(find "$WORK_DIR/usr/bin" -type f -executable | wc -l) binaries"
+        fi
+    else
+        echo "  - WARNING: patchelf not found, binaries may not work"
+    fi
+    
     echo "Weston rootfs included successfully"
 fi
 

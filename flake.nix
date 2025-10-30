@@ -67,6 +67,7 @@
         # Export cuttlefish packages (Linux only)
         packages = if pkgs.stdenv.isLinux then {
           inherit (cuttlefish.packages.${system}) cfctl;
+          weston-rootfs = pkgs.callPackage ./qemu-init/nix/weston-rootfs.nix {};
         } else {};
         
         devShells.default = pkgs.mkShell {

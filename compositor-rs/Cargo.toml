@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Phase 1: Just basic hello world, no external dependencies yet
-# Will add smithay, drm, gbm, input, wayland-server in later phases
+# Phase 2: DRM device initialization
+drm = "0.12"
 
 [profile.release]
 opt-level = "z"

@@ -399,6 +399,22 @@ pub fn main() void {
                 _ = linux.waitpid(@intCast(pid), &status, 0);
                 print("[GFX] drm_rect exited\n", .{});
             }
+        } else if (std.mem.eql(u8, mode, "compositor-rs")) {
+            print("\n[GFX] Launching compositor-rs (Rust DRM)...\n", .{});
+            const pid = linux.fork();
+            if (pid == 0) {
+                const argv = [_:null]?[*:0]const u8{ "/compositor-rs", null };
+                const envp = [_:null]?[*:0]const u8{null};
+                _ = linux.execve("/compositor-rs", &argv, &envp);
+                print("[ERROR] Failed to exec compositor-rs\n", .{});
+                posix.exit(1);
+            } else if (pid > 0) {
+                print("[GFX] compositor-rs started with PID {d}\n", .{pid});
+                // Wait for it to finish
+                var status: u32 = 0;
+                _ = linux.waitpid(@intCast(pid), &status, 0);
+                print("[GFX] compositor-rs exited\n", .{});
+            }
         }
     }
     

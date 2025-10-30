@@ -58,6 +58,13 @@ if [ -f "drm_rect" ]; then
     echo "Including drm_rect in initramfs (with glibc libs)"
 fi
 
+# Include compositor-rs if available (statically linked, no libs needed)
+if [ -f "compositor-rs" ]; then
+    cp compositor-rs "$WORK_DIR/compositor-rs"
+    chmod +x "$WORK_DIR/compositor-rs"
+    echo "Including compositor-rs in initramfs (statically linked)"
+fi
+
 # Include kernel modules if available
 if [ -d "kernel-modules" ]; then
     mkdir -p "$WORK_DIR/lib/modules"

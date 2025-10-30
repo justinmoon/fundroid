@@ -260,6 +260,33 @@ pub fn main() void {
 
     print("\n[SUCCESS] All filesystems mounted and verified!\n", .{});
     
+    // [PHASE 3] Runtime Directory Setup for Wayland/Weston
+    print("\n[PHASE 3] Setting up runtime directories for Wayland...\n", .{});
+    
+    // Create /run directory first
+    createDirectory("/run");
+    
+    // Create /run/wayland with mode 0700 (owner only)
+    const run_wayland_result = linux.mkdir("/run/wayland", 0o700);
+    if (linux.E.init(run_wayland_result) == .SUCCESS) {
+        print("[OK] Created /run/wayland (mode 0700)\n", .{});
+    } else {
+        print("[WARNING] Failed to create /run/wayland\n", .{});
+    }
+    
+    // Create /tmp with mode 1777 (sticky bit + world writable)
+    const tmp_result = linux.mkdir("/tmp", 0o1777);
+    if (linux.E.init(tmp_result) == .SUCCESS) {
+        print("[OK] Created /tmp (mode 1777 - sticky bit)\n", .{});
+    } else {
+        print("[WARNING] Failed to create /tmp\n", .{});
+    }
+    
+    print("\n[PHASE 3] Runtime environment variables:\n", .{});
+    print("  XDG_RUNTIME_DIR=/run/wayland\n", .{});
+    print("  LD_LIBRARY_PATH=/usr/lib\n", .{});
+    print("  (These will be set when launching Weston)\n", .{});
+    
     // [PHASE 2 TEST] Verify Weston rootfs is accessible
     print("\n[PHASE 2 TEST] Verifying Weston rootfs...\n", .{});
     const weston_test = posix.open("/usr/bin/weston", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {

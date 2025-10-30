@@ -326,6 +326,17 @@ pub fn main() void {
         print("[PHASE 2 TEST] SUCCESS: /usr/bin/seatd exists!\n", .{});
     }
     
+    // [PHASE 4 TEST] Verify Weston configuration is accessible
+    print("\n[PHASE 4 TEST] Verifying Weston configuration...\n", .{});
+    const weston_ini_test = posix.open("/etc/weston.ini", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
+        print("[PHASE 4 TEST] FAILED: /etc/weston.ini not found: {s}\n", .{@errorName(err)});
+        break :blk null;
+    };
+    if (weston_ini_test) |fd| {
+        posix.close(fd);
+        print("[PHASE 4 TEST] SUCCESS: /etc/weston.ini exists!\n", .{});
+    }
+    
     // Check if gfx mode requested
     if (gfx_mode) |mode| {
         if (std.mem.eql(u8, mode, "drm_rect")) {

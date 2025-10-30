@@ -6,6 +6,7 @@ var shutdown_requested: bool = false;
 var child_pid: i32 = 0;
 var child_exit_status: u32 = 0;
 var child_exited: bool = false;
+var weston_pid: i32 = 0;
 
 fn print(comptime fmt: []const u8, args: anytype) void {
     var buf: [1024]u8 = undefined;
@@ -414,6 +415,23 @@ pub fn main() void {
                 _ = linux.waitpid(@intCast(pid), &status, 0);
                 print("[GFX] drm_rect exited\n", .{});
             }
+        } else if (std.mem.eql(u8, mode, "weston")) {
+            print("\n[GFX] Starting Weston compositor...\n", .{});
+            const pid = linux.fork();
+            if (pid == 0) {
+                // Child process - exec start-weston script
+                const argv = [_:null]?[*:0]const u8{ "/usr/bin/start-weston", null };
+                const envp = [_:null]?[*:0]const u8{ null };
+                _ = linux.execve("/usr/bin/start-weston", &argv, &envp);
+                print("[ERROR] Failed to exec start-weston\n", .{});
+                posix.exit(1);
+            } else if (pid > 0) {
+                weston_pid = @intCast(pid);
+                print("[GFX] Weston started with PID {d}\n", .{weston_pid});
+                print("[GFX] Weston is running in background, logs at /var/log/weston.log\n", .{});
+            } else {
+                print("[ERROR] Failed to fork for Weston\n", .{});
+            }
         }
     }
     
@@ -452,6 +470,15 @@ pub fn main() void {
     }
 
     print("\n[SHUTDOWN] Received SIGTERM, shutting down...\n", .{});
+
+    if (weston_pid > 0) {
+        print("[SHUTDOWN] Terminating Weston PID {d}...\n", .{weston_pid});
+        _ = linux.kill(weston_pid, linux.SIG.TERM);
+        posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds for graceful exit
+        if (weston_pid > 0) {
+            _ = linux.kill(weston_pid, linux.SIG.KILL);
+        }
+    }
 
     if (child_pid > 0) {
         print("[SHUTDOWN] Terminating child process PID {d}...\n", .{child_pid});

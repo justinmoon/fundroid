@@ -106,10 +106,13 @@ fn startSeatd() i32 {
         const envp = [_:null]?[*:0]const u8{
             "LD_LIBRARY_PATH=/usr/lib",  // Find shared libraries
             "SEATD_VTBOUND=1",  // Tell seatd we're bound to a VT
+            "PATH=/usr/bin:/bin",
             null
         };
-        _ = linux.execve("/usr/bin/seatd", &argv, &envp);
-        print("[ERROR] Failed to exec seatd\n", .{});
+        const result = linux.execve("/usr/bin/seatd", &argv, &envp);
+        // If we get here, exec failed
+        const err = linux.E.init(result);
+        print("[ERROR] Failed to exec seatd: error code {d}\n", .{@intFromEnum(err)});
         posix.exit(1);
     }
 

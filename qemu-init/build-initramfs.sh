@@ -137,12 +137,12 @@ if [ -L "weston-rootfs" ]; then
     
     echo "Weston rootfs included successfully"
     
-    # Copy wayland libraries from local-libs directory if available
+    # Copy all libraries from local-libs directory if available
     if [ -d "local-libs" ]; then
         mkdir -p "$WORK_DIR/usr/lib"
         chmod -R +w "$WORK_DIR/usr/lib" 2>/dev/null || true
-        cp local-libs/libwayland-*.so* "$WORK_DIR/usr/lib/" 2>/dev/null && \
-            echo "  - Copied wayland libraries from local-libs"
+        cp local-libs/*.so* "$WORK_DIR/usr/lib/" 2>/dev/null && \
+            echo "  - Copied $(ls local-libs/*.so* 2>/dev/null | wc -l) libraries from local-libs"
     fi
 fi
 

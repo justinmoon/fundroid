@@ -158,7 +158,48 @@ QEMU eliminates all that and lets us focus on core concepts.
 
 **Note:** Requires libdrm headers to build. Will be integrated into QEMU environment in Phase 6. To build on Linux: `zig build-exe -target x86_64-linux-musl drm_rect.zig -lc -ldrm`
 
-### Phase 6: QEMU DRM Integration
+### ✅ Phase 6: Full Graphics Stack Integration (COMPLETE)
+**Goal:** Load kernel modules, create DRM device, and render graphics from our custom init.
+
+**What was achieved:**
+- **Kernel Switch:** Moved from Debian kernel to NixOS kernel (6.12.44) with loadable module support
+- **Module Loading:** Implemented inline kernel module loading in init.zig (no fork to avoid signal handler conflicts)
+- **Complete virtio-gpu stack:**
+  - virtio.ko, virtio_ring.ko (core virtio subsystem)
+  - virtio_pci_modern_dev.ko, virtio_pci_legacy_dev.ko, virtio_pci.ko (PCI transport)
+  - virtio_dma_buf.ko (DMA buffer sharing)
+  - virtio-gpu.ko (DRM graphics driver)
+- **DRM Device Creation:** virtio-gpu driver creates `/dev/dri/card0` successfully
+- **Graphics Rendering:** drm_rect opens DRM device, allocates framebuffer, and renders solid color
+- **GUI Mode:** QEMU window displays rendered framebuffer (640x480 @ 120Hz)
+- **Dynamic Linking:** Included full glibc + libdrm in initramfs for drm_rect binary
+
+**Key Technical Wins:**
+- Solved signal handler/waitpid race condition by loading modules inline
+- All modules load synchronously before DRM device check
+- Clean integration with kernel cmdline parsing (`gfx=drm_rect`)
+- Proper resource cleanup and error handling throughout stack
+
+**Acceptance Criteria:**
+- ✅ `./run.sh --gui gfx=drm_rect` opens QEMU window
+- ✅ All 7 kernel modules load successfully (virtio stack + gpu)
+- ✅ virtio-gpu driver initializes and creates /dev/dri/card0
+- ✅ drm_rect opens DRM device (fd=5)
+- ✅ Framebuffer created (640x480, 1228800 bytes)
+- ✅ Screen fills with solid color (blue due to byte order, but pixels render!)
+- ✅ Clean 30-second display then teardown
+- ✅ No kernel panics or module loading errors
+- ✅ Headless mode still works without graphics
+
+**What you learned:**
+- Kernel module dependencies and load ordering
+- Linux DRM/KMS driver architecture (connectors, encoders, CRTCs)
+- virtio paravirtualization model
+- QEMU graphics device emulation (virtio-gpu-pci)
+- Signal handling complexities in PID 1
+- Dynamic vs static linking trade-offs in initramfs
+
+### Phase 7: Weston Compositor Integration
 **Goal:** Boot straight into the Weston DRM backend from our init and see the Weston desktop inside the QEMU window.
 
 **Tasks:**
@@ -176,7 +217,7 @@ QEMU eliminates all that and lets us focus on core concepts.
 - [ ] Exiting Weston (Ctrl+Alt+Backspace) respawns it up to the configured retry limit without panicking PID 1.
 - [ ] Headless regression tests still pass when `gfx` is unset.
 
-### Phase 7: Weston Compositor Proof
+### Phase 8: Cage Compositor Alternative
 **Goal:** Provide a kiosk-style compositor alternative powered by Cage and prove it by running a demo Wayland client.
 
 **Tasks:**
@@ -192,7 +233,7 @@ QEMU eliminates all that and lets us focus on core concepts.
 - [ ] Killing the Cage process from the host (`sendkey ctrl-alt-backspace` in the QEMU monitor) causes PID 1 to respawn it and logs the new PID.
 - [ ] Switching between `gfx=weston`, `gfx=cage`, and no `gfx` happens without rebuilding the initramfs (only the kernel cmdline changes).
 
-### Phase 8: Cage Compositor Option
+### Phase 9: Unified Init Interface
 **Goal:** Expose a single init binary that can boot in headless QA mode, Weston mode, or Cage mode based on kernel parameters.
 
 **Tasks:**

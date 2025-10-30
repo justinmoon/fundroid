@@ -111,7 +111,21 @@ pub fn main() void {
     print("PID: {d} (should be 1)\n", .{linux.getpid()});
     print("\n", .{});
 
-    // Parse kernel command line for gfx= parameter
+    installSignalHandlers();
+    print("\n", .{});
+
+    print("[PHASE 2] Mounting essential filesystems...\n", .{});
+
+    createDirectory("/proc");
+    createDirectory("/sys");
+    createDirectory("/dev");
+
+    mountFilesystem("proc", "/proc", "proc", linux.MS.NODEV | linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
+        print("[ERROR] Failed to mount /proc: {s}\n", .{@errorName(err)});
+    };
+    print("[OK] Mounted /proc (process information)\n", .{});
+
+    // Parse kernel command line for gfx= parameter (AFTER mounting /proc)
     var gfx_mode: ?[]const u8 = null;
     const cmdline_fd = posix.open("/proc/cmdline", .{ .ACCMODE = .RDONLY }, 0) catch null;
     if (cmdline_fd) |fd| {
@@ -129,20 +143,6 @@ pub fn main() void {
         }
     }
 
-    installSignalHandlers();
-    print("\n", .{});
-
-    print("[PHASE 2] Mounting essential filesystems...\n", .{});
-
-    createDirectory("/proc");
-    createDirectory("/sys");
-    createDirectory("/dev");
-
-    mountFilesystem("proc", "/proc", "proc", linux.MS.NODEV | linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
-        print("[ERROR] Failed to mount /proc: {s}\n", .{@errorName(err)});
-    };
-    print("[OK] Mounted /proc (process information)\n", .{});
-
     mountFilesystem("sysfs", "/sys", "sysfs", linux.MS.NODEV | linux.MS.NOSUID | linux.MS.NOEXEC) catch |err| {
         print("[ERROR] Failed to mount /sys: {s}\n", .{@errorName(err)});
     };
@@ -152,6 +152,26 @@ pub fn main() void {
         print("[ERROR] Failed to mount /dev: {s}\n", .{@errorName(err)});
     };
     print("[OK] Mounted /dev (device nodes)\n", .{});
+
+    // Try to load virtio_gpu module (best effort, may not exist)
+    print("[DRM] Attempting to load virtio_gpu module...\n", .{});
+    const modprobe_pid = linux.fork();
+    if (modprobe_pid == 0) {
+        const argv = [_:null]?[*:0]const u8{ "/sbin/modprobe", "virtio_gpu", null };
+        const envp = [_:null]?[*:0]const u8{null};
+        _ = linux.execve("/sbin/modprobe", &argv, &envp);
+        posix.exit(1);
+    } else if (modprobe_pid > 0) {
+        var status: u32 = 0;
+        _ = linux.waitpid(@intCast(modprobe_pid), &status, 0);
+        const exit_code = (status >> 8) & 0xff;
+        if (exit_code == 0) {
+            print("[DRM] virtio_gpu module loaded\n", .{});
+            posix.nanosleep(0, 500_000_000); // Wait for device to appear
+        } else {
+            print("[DRM] virtio_gpu module not available (may be built-in)\n", .{});
+        }
+    }
 
     print("\n[VERIFY] Reading /proc/self/status to confirm PID...\n", .{});
     const status_fd = posix.open("/proc/self/status", .{ .ACCMODE = .RDONLY }, 0) catch {
@@ -197,6 +217,28 @@ pub fn main() void {
     print("[OK] Found {d} entries in /dev\n", .{count});
 
     print("\n[SUCCESS] All filesystems mounted and verified!\n", .{});
+    
+    // Check if gfx mode requested
+    if (gfx_mode) |mode| {
+        if (std.mem.eql(u8, mode, "drm_rect")) {
+            print("\n[GFX] Launching drm_rect...\n", .{});
+            const pid = linux.fork();
+            if (pid == 0) {
+                const argv = [_:null]?[*:0]const u8{ "/drm_rect", null };
+                const envp = [_:null]?[*:0]const u8{ "LD_LIBRARY_PATH=/lib:/lib64", null };
+                _ = linux.execve("/drm_rect", &argv, &envp);
+                print("[ERROR] Failed to exec drm_rect\n", .{});
+                posix.exit(1);
+            } else if (pid > 0) {
+                print("[GFX] drm_rect started with PID {d}\n", .{pid});
+                // Wait for it to finish
+                var status: u32 = 0;
+                _ = linux.waitpid(@intCast(pid), &status, 0);
+                print("[GFX] drm_rect exited\n", .{});
+            }
+        }
+    }
+    
     print("\n[PHASE 4] Starting process management...\n", .{});
 
     spawnChild();

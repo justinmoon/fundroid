@@ -22,6 +22,29 @@ chmod +x "$WORK_DIR/init"
 cp test_child "$WORK_DIR/test_child"
 chmod +x "$WORK_DIR/test_child"
 
+# Include drm_rect if available
+if [ -f "drm_rect" ]; then
+    cp drm_rect "$WORK_DIR/drm_rect"
+    chmod +x "$WORK_DIR/drm_rect"
+    
+    # Include required libraries for glibc
+    mkdir -p "$WORK_DIR/lib64" "$WORK_DIR/lib"
+    if [ -f "ld-linux-x86-64.so.2" ]; then
+        cp ld-linux-x86-64.so.2 "$WORK_DIR/lib64/"
+    fi
+    if [ -f "libc.so.6" ]; then
+        cp libc.so.6 "$WORK_DIR/lib/"
+    fi
+    if [ -f "libpthread.so.0" ]; then
+        cp libpthread.so.0 "$WORK_DIR/lib/"
+    fi
+    if [ -f "libdrm.so.2" ]; then
+        cp libdrm.so.2 "$WORK_DIR/lib/"
+    fi
+    
+    echo "Including drm_rect in initramfs (with glibc libs)"
+fi
+
 cd "$WORK_DIR"
 find . | cpio --create --format=newc --quiet | gzip > "$OLDPWD/initramfs.cpio.gz"
 cd "$OLDPWD"

@@ -61,14 +61,15 @@ pub fn main() !void {
         print("ERROR: no connected connector found\n", .{});
         return error.NoConnector;
     }
-    defer c.drmModeFreeConnector(connector);
+    const conn = connector.?; // Unwrap the optional
+    defer c.drmModeFreeConnector(conn);
     
-    // Get first mode
-    const mode = connector.*.modes[0];
+    // Get first mode (make mutable copy for drmModeSetCrtc)
+    var mode = conn.*.modes[0];
     print("using mode {d}x{d} @ {d}Hz\n", .{ mode.hdisplay, mode.vdisplay, mode.vrefresh });
     
     // Find encoder and CRTC
-    const encoder_id = connector.*.encoder_id;
+    const encoder_id = conn.*.encoder_id;
     if (encoder_id == 0) {
         print("ERROR: connector has no encoder\n", .{});
         return error.NoEncoder;

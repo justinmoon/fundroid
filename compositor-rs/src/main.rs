@@ -26,10 +26,18 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 // SHM pool data - stores fd for later mapping
-#[derive(Clone)]
 struct ShmPoolData {
     fd: RawFd,
     size: i32,
+}
+
+impl Drop for ShmPoolData {
+    fn drop(&mut self) {
+        // Close the duplicated fd
+        if self.fd >= 0 {
+            unsafe { libc::close(self.fd); }
+        }
+    }
 }
 
 // Buffer data - metadata for rendering
@@ -73,25 +81,33 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
     let buffers = state.buffers.lock().unwrap();
     let buf_data = buffers.get(&buffer_id).ok_or("Buffer not found")?;
     
-    // Get pool data
-    let pools = state.shm_pools.lock().unwrap();
-    let pool = pools.get(&buf_data.pool_id).ok_or("Pool not found")?;
+    // Get pool data (clone the fd for use)
+    let pool_fd = {
+        let pools = state.shm_pools.lock().unwrap();
+        let pool = pools.get(&buf_data.pool_id).ok_or("Pool not found")?;
+        pool.fd
+    };
     
     // Map the SHM buffer from client
     let shm_size = (buf_data.height * buf_data.stride) as usize;
-    let client_pixels = unsafe {
-        let ptr = libc::mmap(
+    let mmap_ptr = unsafe {
+        libc::mmap(
             std::ptr::null_mut(),
             shm_size,
             libc::PROT_READ,
             libc::MAP_SHARED,
-            pool.fd,
+            pool_fd,
             buf_data.offset as libc::off_t,
-        );
-        if ptr == libc::MAP_FAILED {
-            return Err("Failed to mmap SHM buffer".into());
-        }
-        std::slice::from_raw_parts(ptr as *const u32, (buf_data.width * buf_data.height) as usize)
+        )
+    };
+    
+    if mmap_ptr == libc::MAP_FAILED {
+        let errno = unsafe { *libc::__errno_location() };
+        return Err(format!("Failed to mmap SHM buffer: errno {}", errno).into());
+    }
+    
+    let client_pixels = unsafe {
+        std::slice::from_raw_parts(mmap_ptr as *const u32, (buf_data.width * buf_data.height) as usize)
     };
     
     // Get DRM state and render
@@ -136,7 +152,7 @@ fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn 
     
     // Unmap the SHM buffer
     unsafe {
-        libc::munmap(client_pixels.as_ptr() as *mut libc::c_void, shm_size);
+        libc::munmap(mmap_ptr, shm_size);
     }
     
     Ok(())
@@ -270,16 +286,21 @@ impl Dispatch<wl_shm::WlShm, ()> for CompositorState {
     ) {
         match request {
             wl_shm::Request::CreatePool { id, fd, size } => {
-                let raw_fd = fd.as_raw_fd();
-                println!("✓ Client created SHM pool: fd={}, size={}", raw_fd, size);
+                // Duplicate the fd so we own it (original fd will be closed by protocol)
+                let dup_fd = unsafe { libc::dup(fd.as_raw_fd()) };
+                if dup_fd < 0 {
+                    eprintln!("✗ Failed to duplicate SHM fd");
+                    return;
+                }
+                println!("✓ Client created SHM pool: fd={} (dup={}), size={}", fd.as_raw_fd(), dup_fd, size);
                 
                 // Init pool first to get the ID
                 let pool = data_init.init(id, ());
                 let pool_id = pool.id().protocol_id();
                 
-                // Store pool data for later buffer mapping
+                // Store pool data with duplicated fd for later buffer mapping
                 if let Ok(mut pools) = state.shm_pools.lock() {
-                    pools.insert(pool_id, ShmPoolData { fd: raw_fd, size });
+                    pools.insert(pool_id, ShmPoolData { fd: dup_fd, size });
                 }
             }
             _ => {}

@@ -87,6 +87,51 @@ fn spawnChild() void {
     print("[SPAWN] Child process started with PID {d}\n", .{pid});
 }
 
+fn loadKernelModules() void {
+    const modules = [_][]const u8{
+        "/lib/modules/virtio.ko",
+        "/lib/modules/virtio_ring.ko",
+        "/lib/modules/virtio_pci_modern_dev.ko",
+        "/lib/modules/virtio_pci_legacy_dev.ko",
+        "/lib/modules/virtio_pci.ko",
+        "/lib/modules/virtio_dma_buf.ko",
+        "/lib/modules/virtio-gpu.ko",
+    };
+
+    for (modules) |module_path| {
+        print("Loading {s}...\n", .{module_path});
+        
+        const fd = posix.open(module_path, .{ .ACCMODE = .RDONLY }, 0) catch |err| {
+            print("  ERROR: Can't open: {s}\n", .{@errorName(err)});
+            continue;
+        };
+        defer posix.close(fd);
+
+        const stat = posix.fstat(fd) catch continue;
+        const size = @as(usize, @intCast(stat.size));
+        
+        const buf = posix.mmap(
+            null,
+            size,
+            posix.PROT.READ,
+            .{ .TYPE = .PRIVATE },
+            fd,
+            0,
+        ) catch |err| {
+            print("  ERROR: Can't mmap: {s}\n", .{@errorName(err)});
+            continue;
+        };
+        defer posix.munmap(buf);
+
+        const result = linux.syscall3(.init_module, @intFromPtr(buf.ptr), size, @intFromPtr(""));
+        if (result != 0) {
+            print("  ERROR: init_module failed: {d}\n", .{result});
+        } else {
+            print("  OK\n", .{});
+        }
+    }
+}
+
 fn installSignalHandlers() void {
     var sa = linux.Sigaction{
         .handler = .{ .handler = &handleSignal },
@@ -153,24 +198,21 @@ pub fn main() void {
     };
     print("[OK] Mounted /dev (device nodes)\n", .{});
 
-    // Try to load virtio_gpu module (best effort, may not exist)
-    print("[DRM] Attempting to load virtio_gpu module...\n", .{});
-    const modprobe_pid = linux.fork();
-    if (modprobe_pid == 0) {
-        const argv = [_:null]?[*:0]const u8{ "/sbin/modprobe", "virtio_gpu", null };
-        const envp = [_:null]?[*:0]const u8{null};
-        _ = linux.execve("/sbin/modprobe", &argv, &envp);
-        posix.exit(1);
-    } else if (modprobe_pid > 0) {
-        var status: u32 = 0;
-        _ = linux.waitpid(@intCast(modprobe_pid), &status, 0);
-        const exit_code = (status >> 8) & 0xff;
-        if (exit_code == 0) {
-            print("[DRM] virtio_gpu module loaded\n", .{});
-            posix.nanosleep(0, 500_000_000); // Wait for device to appear
-        } else {
-            print("[DRM] virtio_gpu module not available (may be built-in)\n", .{});
-        }
+    // Load kernel modules for DRM support inline (no fork to avoid signal handler issues)
+    print("[DRM] Loading kernel modules...\n", .{});
+    loadKernelModules();
+
+    // Check if DRM device exists
+    print("[DRM] Checking for /dev/dri/card0...\n", .{});
+    const drm_test = posix.open("/dev/dri/card0", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
+        print("[DRM] /dev/dri/card0 not found: {s}\n", .{@errorName(err)});
+        print("[DRM] Kernel likely doesn't have virtio_gpu driver\n", .{});
+        print("[DRM] Need kernel with CONFIG_DRM_VIRTIO_GPU=y built-in\n", .{});
+        break :blk null;
+    };
+    if (drm_test) |fd| {
+        posix.close(fd);
+        print("[DRM] /dev/dri/card0 found - DRM is available!\n", .{});
     }
 
     print("\n[VERIFY] Reading /proc/self/status to confirm PID...\n", .{});

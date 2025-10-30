@@ -22,6 +22,11 @@ chmod +x "$WORK_DIR/init"
 cp test_child "$WORK_DIR/test_child"
 chmod +x "$WORK_DIR/test_child"
 
+if [ -f "load_modules" ]; then
+    cp load_modules "$WORK_DIR/load_modules"
+    chmod +x "$WORK_DIR/load_modules"
+fi
+
 # Include drm_rect if available
 if [ -f "drm_rect" ]; then
     cp drm_rect "$WORK_DIR/drm_rect"
@@ -43,6 +48,13 @@ if [ -f "drm_rect" ]; then
     fi
     
     echo "Including drm_rect in initramfs (with glibc libs)"
+fi
+
+# Include kernel modules if available
+if [ -d "kernel-modules" ]; then
+    mkdir -p "$WORK_DIR/lib/modules"
+    cp kernel-modules/*.ko "$WORK_DIR/lib/modules/" 2>/dev/null || true
+    echo "Including kernel modules"
 fi
 
 cd "$WORK_DIR"

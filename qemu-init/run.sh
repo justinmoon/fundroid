@@ -58,7 +58,7 @@ echo
 
 # Build QEMU command
 QEMU_CMD="qemu-system-x86_64 -kernel ./bzImage -initrd initramfs.cpio.gz"
-QEMU_CMD="$QEMU_CMD -append \"console=ttyS0 quiet init=/init panic=1$KERNEL_ARGS\""
+QEMU_CMD="$QEMU_CMD -append \"console=ttyS0 init=/init panic=1$KERNEL_ARGS\""
 
 if [ "$GUI_MODE" = true ]; then
     # GUI mode: Use cocoa on macOS, SDL on Linux

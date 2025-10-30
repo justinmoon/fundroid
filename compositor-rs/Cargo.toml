@@ -12,7 +12,7 @@ wayland-server = "0.31"
 wayland-backend = "0.3"
 
 # Phase 6+: Buffer rendering
-memmap2 = "0.9"
+libc = "0.2"
 
 [profile.release]
 opt-level = "z"

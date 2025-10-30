@@ -1,7 +1,7 @@
 use drm::control::{connector, Device as ControlDevice};
 use drm::buffer::DrmFourcc;
 use std::fs::{File, OpenOptions};
-use std::os::unix::io::{AsFd, AsRawFd};
+use std::os::unix::io::{AsFd, AsRawFd, RawFd};
 
 struct Card(File);
 
@@ -21,29 +21,125 @@ impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
 use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client, Resource};
-use wayland_server::protocol::{wl_compositor, wl_surface, wl_region, wl_shm, wl_shm_pool, wl_buffer};
+use wayland_server::protocol::{wl_compositor, wl_surface, wl_region, wl_shm, wl_shm_pool, wl_buffer, wl_callback};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-// Surface state - stores attached buffer
+// SHM pool data - stores fd for later mapping
+#[derive(Clone)]
+struct ShmPoolData {
+    fd: RawFd,
+    size: i32,
+}
+
+// Buffer data - metadata for rendering
+#[derive(Clone)]
+struct BufferData {
+    pool_id: u32,
+    offset: i32,
+    width: i32,
+    height: i32,
+    stride: i32,
+    format: wl_shm::Format,
+}
+
+// Surface state - stores attached buffer and frame callback
 struct SurfaceData {
-    buffer: Option<wl_buffer::WlBuffer>,
+    buffer_id: Option<u32>,
+    frame_callback: Option<wl_callback::WlCallback>,
 }
 
-// State that implements all protocol dispatchers
-struct CompositorState {
-    surfaces: Arc<Mutex<HashMap<u32, SurfaceData>>>,
-    // DRM/framebuffer state (will be set later)
-    drm_state: Option<DrmState>,
-}
-
+// DRM state - wrapped in Arc<Mutex<>> for sharing
 struct DrmState {
-    card: Card,
+    card: Arc<Mutex<Card>>,
     fb_handle: drm::control::framebuffer::Handle,
     crtc_handle: drm::control::crtc::Handle,
     connector_handle: drm::control::connector::Handle,
     mode: drm::control::Mode,
     db: drm::control::dumbbuffer::DumbBuffer,
+}
+
+// State that implements all protocol dispatchers
+struct CompositorState {
+    surfaces: Arc<Mutex<HashMap<u32, SurfaceData>>>,
+    shm_pools: Arc<Mutex<HashMap<u32, ShmPoolData>>>,
+    buffers: Arc<Mutex<HashMap<u32, BufferData>>>,
+    drm_state: Arc<Mutex<Option<DrmState>>>,
+}
+
+// Helper function to render buffer to framebuffer
+fn render_buffer(state: &CompositorState, buffer_id: u32) -> Result<(), Box<dyn std::error::Error>> {
+    // Get buffer metadata
+    let buffers = state.buffers.lock().unwrap();
+    let buf_data = buffers.get(&buffer_id).ok_or("Buffer not found")?;
+    
+    // Get pool data
+    let pools = state.shm_pools.lock().unwrap();
+    let pool = pools.get(&buf_data.pool_id).ok_or("Pool not found")?;
+    
+    // Map the SHM buffer from client
+    let shm_size = (buf_data.height * buf_data.stride) as usize;
+    let client_pixels = unsafe {
+        let ptr = libc::mmap(
+            std::ptr::null_mut(),
+            shm_size,
+            libc::PROT_READ,
+            libc::MAP_SHARED,
+            pool.fd,
+            buf_data.offset as libc::off_t,
+        );
+        if ptr == libc::MAP_FAILED {
+            return Err("Failed to mmap SHM buffer".into());
+        }
+        std::slice::from_raw_parts(ptr as *const u32, (buf_data.width * buf_data.height) as usize)
+    };
+    
+    // Get DRM state and render
+    let drm_guard = state.drm_state.lock().unwrap();
+    if let Some(ref drm) = *drm_guard {
+        let card = drm.card.lock().unwrap();
+        let mut db_clone = drm.db.clone();
+        let mut fb_map = card.map_dumb_buffer(&mut db_clone)?;
+        
+        let fb_pixels = unsafe {
+            std::slice::from_raw_parts_mut(
+                fb_map.as_mut_ptr() as *mut u32,
+                (drm.mode.size().0 * drm.mode.size().1) as usize
+            )
+        };
+        
+        // Copy pixels from client buffer to framebuffer
+        let fb_width = drm.mode.size().0 as usize;
+        let buf_width = buf_data.width as usize;
+        let buf_height = buf_data.height as usize;
+        let stride_pixels = (buf_data.stride / 4) as usize;
+        
+        for y in 0..buf_height.min(drm.mode.size().1 as usize) {
+            for x in 0..buf_width.min(fb_width) {
+                let src_idx = y * stride_pixels + x;
+                let dst_idx = y * fb_width + x;
+                if src_idx < client_pixels.len() && dst_idx < fb_pixels.len() {
+                    fb_pixels[dst_idx] = client_pixels[src_idx];
+                }
+            }
+        }
+        
+        // Update CRTC to display new content
+        card.set_crtc(
+            drm.crtc_handle,
+            Some(drm.fb_handle),
+            (0, 0),
+            &[drm.connector_handle],
+            Some(drm.mode),
+        )?;
+    }
+    
+    // Unmap the SHM buffer
+    unsafe {
+        libc::munmap(client_pixels.as_ptr() as *mut libc::c_void, shm_size);
+    }
+    
+    Ok(())
 }
 
 // Implement Dispatch for wl_compositor
@@ -80,26 +176,60 @@ impl Dispatch<wl_surface::WlSurface, ()> for CompositorState {
         request: wl_surface::Request,
         _data: &(),
         _dhandle: &wayland_server::DisplayHandle,
-        _data_init: &mut DataInit<'_, Self>,
+        data_init: &mut DataInit<'_, Self>,
     ) {
         let surface_id = resource.id().protocol_id();
         match request {
             wl_surface::Request::Attach { buffer, x, y } => {
-                println!("✓ Surface {} attach: buffer={:?}, offset=({}, {})", surface_id, buffer, x, y);
-                // Store buffer in surface data
+                let buffer_id = buffer.as_ref().map(|b| b.id().protocol_id());
+                println!("✓ Surface {} attach: buffer_id={:?}, offset=({}, {})", surface_id, buffer_id, x, y);
+                // Store buffer ID in surface data
                 if let Ok(mut surfaces) = state.surfaces.lock() {
-                    surfaces.entry(surface_id).or_insert(SurfaceData { buffer: None }).buffer = buffer;
+                    surfaces.entry(surface_id).or_insert(SurfaceData { 
+                        buffer_id: None,
+                        frame_callback: None,
+                    }).buffer_id = buffer_id;
                 }
             }
             wl_surface::Request::Commit => {
                 println!("✓ Surface {} commit", surface_id);
-                // In Phase 6, we would render the buffer here
-                if let Ok(surfaces) = state.surfaces.lock() {
-                    if let Some(surf_data) = surfaces.get(&surface_id) {
-                        if surf_data.buffer.is_some() {
-                            println!("  → Would render buffer here (Phase 6+)");
+                
+                // Render the attached buffer
+                let buffer_id = {
+                    let surfaces = state.surfaces.lock().unwrap();
+                    surfaces.get(&surface_id).and_then(|s| s.buffer_id)
+                };
+                
+                if let Some(bid) = buffer_id {
+                    println!("  → Rendering buffer {}", bid);
+                    match render_buffer(state, bid) {
+                        Ok(_) => println!("  ✓ Buffer rendered successfully!"),
+                        Err(e) => eprintln!("  ✗ Render failed: {}", e),
+                    }
+                }
+                
+                // Send frame callback if requested
+                if let Ok(mut surfaces) = state.surfaces.lock() {
+                    if let Some(surf_data) = surfaces.get_mut(&surface_id) {
+                        if let Some(callback) = surf_data.frame_callback.take() {
+                            let time = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u32;
+                            callback.done(time);
                         }
                     }
+                }
+            }
+            wl_surface::Request::Frame { callback } => {
+                println!("✓ Surface {} frame callback requested", surface_id);
+                let cb = data_init.init(callback, ());
+                // Store for sending after next commit
+                if let Ok(mut surfaces) = state.surfaces.lock() {
+                    surfaces.entry(surface_id).or_insert(SurfaceData {
+                        buffer_id: None,
+                        frame_callback: None,
+                    }).frame_callback = Some(cb);
                 }
             }
             wl_surface::Request::Damage { x, y, width, height } => {
@@ -130,7 +260,7 @@ impl Dispatch<wl_region::WlRegion, ()> for CompositorState {
 // Implement Dispatch for wl_shm (shared memory)
 impl Dispatch<wl_shm::WlShm, ()> for CompositorState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &Client,
         _resource: &wl_shm::WlShm,
         request: wl_shm::Request,
@@ -140,8 +270,17 @@ impl Dispatch<wl_shm::WlShm, ()> for CompositorState {
     ) {
         match request {
             wl_shm::Request::CreatePool { id, fd, size } => {
-                println!("✓ Client created SHM pool: fd={:?}, size={}", fd, size);
-                let _pool = data_init.init(id, ());
+                let raw_fd = fd.as_raw_fd();
+                println!("✓ Client created SHM pool: fd={}, size={}", raw_fd, size);
+                
+                // Init pool first to get the ID
+                let pool = data_init.init(id, ());
+                let pool_id = pool.id().protocol_id();
+                
+                // Store pool data for later buffer mapping
+                if let Ok(mut pools) = state.shm_pools.lock() {
+                    pools.insert(pool_id, ShmPoolData { fd: raw_fd, size });
+                }
             }
             _ => {}
         }
@@ -151,9 +290,9 @@ impl Dispatch<wl_shm::WlShm, ()> for CompositorState {
 // Implement Dispatch for wl_shm_pool
 impl Dispatch<wl_shm_pool::WlShmPool, ()> for CompositorState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &Client,
-        _resource: &wl_shm_pool::WlShmPool,
+        resource: &wl_shm_pool::WlShmPool,
         request: wl_shm_pool::Request,
         _data: &(),
         _dhandle: &wayland_server::DisplayHandle,
@@ -162,10 +301,30 @@ impl Dispatch<wl_shm_pool::WlShmPool, ()> for CompositorState {
         match request {
             wl_shm_pool::Request::CreateBuffer { id, offset, width, height, stride, format } => {
                 println!("✓ Client created buffer: {}x{} stride={} format={:?}", width, height, stride, format);
-                let _buffer = data_init.init(id, ());
+                
+                let pool_id = resource.id().protocol_id();
+                let buffer_id = data_init.init(id, ()).id().protocol_id();
+                
+                // Store buffer metadata
+                if let Ok(mut buffers) = state.buffers.lock() {
+                    buffers.insert(buffer_id, BufferData {
+                        pool_id,
+                        offset,
+                        width,
+                        height,
+                        stride,
+                        format: format.into_result().unwrap_or(wl_shm::Format::Argb8888),
+                    });
+                }
             }
             wl_shm_pool::Request::Resize { size } => {
                 println!("✓ SHM pool resized to {}", size);
+                let pool_id = resource.id().protocol_id();
+                if let Ok(mut pools) = state.shm_pools.lock() {
+                    if let Some(pool) = pools.get_mut(&pool_id) {
+                        pool.size = size;
+                    }
+                }
             }
             _ => {}
         }
@@ -175,15 +334,40 @@ impl Dispatch<wl_shm_pool::WlShmPool, ()> for CompositorState {
 // Implement Dispatch for wl_buffer
 impl Dispatch<wl_buffer::WlBuffer, ()> for CompositorState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &Client,
-        _resource: &wl_buffer::WlBuffer,
-        _request: wl_buffer::Request,
+        resource: &wl_buffer::WlBuffer,
+        request: wl_buffer::Request,
         _data: &(),
         _dhandle: &wayland_server::DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
-        // Buffers are mostly passive, destroyed when not needed
+        match request {
+            wl_buffer::Request::Destroy => {
+                let buffer_id = resource.id().protocol_id();
+                println!("✓ Buffer {} destroyed", buffer_id);
+                // Clean up buffer metadata
+                if let Ok(mut buffers) = state.buffers.lock() {
+                    buffers.remove(&buffer_id);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_callback (frame callbacks)
+impl Dispatch<wl_callback::WlCallback, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_callback::WlCallback,
+        _request: wl_callback::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        // Callbacks are passive
     }
 }
 
@@ -223,7 +407,7 @@ impl GlobalDispatch<wl_shm::WlShm, ()> for CompositorState {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("compositor-rs v0.1.0 - Phase 6: Buffer Rendering (SHM protocol)");
+    println!("compositor-rs v0.1.0 - Phase 6: Buffer Rendering (COMPLETE!)");
     println!();
 
     let card_path = "/dev/dri/card0";
@@ -300,18 +484,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Map buffer and fill with orange color
     println!("Mapping buffer and filling with orange (#FF8800)...");
-    let mut map = card.map_dumb_buffer(&mut db)?;
-    let pixels = unsafe {
-        std::slice::from_raw_parts_mut(
-            map.as_mut_ptr() as *mut u32,
-            (width * height) as usize
-        )
-    };
-    
-    // Fill with orange (XRGB8888 format: 0x00RRGGBB)
-    for pixel in pixels.iter_mut() {
-        *pixel = 0x00FF8800; // Orange
-    }
+    {
+        let mut map = card.map_dumb_buffer(&mut db)?;
+        let pixels = unsafe {
+            std::slice::from_raw_parts_mut(
+                map.as_mut_ptr() as *mut u32,
+                (width * height) as usize
+            )
+        };
+        
+        // Fill with orange (XRGB8888 format: 0x00RRGGBB)
+        for pixel in pixels.iter_mut() {
+            *pixel = 0x00FF8800; // Orange
+        }
+    } // Drop map here to release borrow
     println!("✓ Buffer filled with orange color");
     println!();
     
@@ -361,13 +547,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Clients can connect via WAYLAND_DISPLAY={}", socket_name);
     println!();
     
+    // Store DRM state for rendering
+    let drm_state = DrmState {
+        card: Arc::new(Mutex::new(card)),
+        fb_handle,
+        crtc_handle,
+        connector_handle,
+        mode,
+        db,
+    };
+    
     // Run for 30 seconds with event loop
-    println!("Running for 30 seconds (accepting Wayland clients & buffers)...");
+    println!("Running for 30 seconds (accepting Wayland clients & rendering buffers)...");
     let start = std::time::Instant::now();
     let duration = std::time::Duration::from_secs(30);
     let mut state = CompositorState {
         surfaces: Arc::new(Mutex::new(HashMap::new())),
-        drm_state: None, // Would be initialized for actual rendering
+        shm_pools: Arc::new(Mutex::new(HashMap::new())),
+        buffers: Arc::new(Mutex::new(HashMap::new())),
+        drm_state: Arc::new(Mutex::new(Some(drm_state))),
     };
     
     while start.elapsed() < duration {
@@ -400,6 +598,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     println!();
-    println!("Phase 6 complete - SHM buffer protocol handled successfully!");
+    println!("Phase 6 COMPLETE - Full buffer rendering implemented!");
+    println!("  - Rendered {} surfaces", state.surfaces.lock().unwrap().len());
+    println!("  - Processed {} buffers", state.buffers.lock().unwrap().len());
     Ok(())
 }

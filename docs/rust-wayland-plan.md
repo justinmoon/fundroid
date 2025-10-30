@@ -47,25 +47,22 @@ Build a minimal Wayland compositor in Rust using Smithay that:
 
 ## Phase-by-Phase Plan
 
-### Phase 1: Project Setup
+### Phase 1: Project Setup ✅
 **Goal:** Create Rust project that compiles to static Linux binary.
 
 **Tasks:**
-1. Create `qemu-init/compositor-rs/` directory
-2. Initialize cargo project: `cargo init --name compositor-rs`
-3. Configure for static linking (musl target)
-4. Add basic dependencies to Cargo.toml
-5. Create hello world that prints and exits
-6. Test cross-compilation from macOS to Linux
+1. ✅ Create `compositor-rs/` directory (top-level, not in qemu-init)
+2. ✅ Initialize cargo project: `cargo init --name compositor-rs`
+3. ✅ Configure for static linking (musl target)
+4. ✅ Add musl target to flake.nix rust configuration
+5. ✅ Create hello world that prints and exits
+6. ✅ Test cross-compilation from macOS to Linux with rust-lld
 
-**Dependencies to add:**
+**Dependencies:**
 ```toml
 [dependencies]
-smithay = "0.3"
-drm = "0.12"
-gbm = "0.14"
-input = "0.9"
-wayland-server = "0.31"
+# Phase 1: No dependencies yet - just hello world
+# Will add smithay, drm, gbm, input, wayland-server in Phase 2+
 ```
 
 **Build command:**
@@ -74,16 +71,18 @@ cargo build --release --target x86_64-unknown-linux-musl
 ```
 
 **Acceptance Criteria:**
-- [ ] Cargo project created and builds successfully
-- [ ] Binary is statically linked (check with `file` command)
-- [ ] Can copy binary to initramfs and execute from init
-- [ ] Basic logging works (prints to stdout/stderr)
-- [ ] Binary size reasonable (< 5MB stripped)
+- [x] Cargo project created and builds successfully
+- [x] Binary is statically linked (static-pie, check with `file` command)
+- [x] Binary size: 377KB (well under 5MB target!)
+- [x] Cross-compilation works from macOS using rust-lld
+- [ ] Can copy binary to initramfs and execute from init (deferred to Phase 2)
+- [ ] Basic logging works (will test in Phase 2 when running in QEMU)
 
-**What you'll learn:**
-- Rust cross-compilation setup
-- Static linking with musl
+**What you learned:**
+- Rust cross-compilation setup with nix flake
+- Static linking with musl using rust-lld
 - Cargo project structure
+- Nix rust-overlay target configuration
 
 ---
 

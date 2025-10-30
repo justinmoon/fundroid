@@ -1,0 +1,14 @@
+[package]
+name = "compositor-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Phase 1: Just basic hello world, no external dependencies yet
+# Will add smithay, drm, gbm, input, wayland-server in later phases
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"

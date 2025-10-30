@@ -40,7 +40,7 @@
         };
 
         rust = pkgs.rust-bin.stable.latest.default.override {
-          targets = [ "x86_64-linux-android" "aarch64-linux-android" ];
+          targets = [ "x86_64-linux-android" "aarch64-linux-android" "x86_64-unknown-linux-musl" ];
           extensions = [ "rust-src" "clippy" "rustfmt" ];
         };
 

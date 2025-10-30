@@ -20,11 +20,31 @@ impl AsRawFd for Card {
 impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
-use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client};
-use wayland_server::protocol::{wl_compositor, wl_surface, wl_region};
+use wayland_server::{Display, ListeningSocket, Dispatch, New, DataInit, Client, Resource};
+use wayland_server::protocol::{wl_compositor, wl_surface, wl_region, wl_shm, wl_shm_pool, wl_buffer};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+// Surface state - stores attached buffer
+struct SurfaceData {
+    buffer: Option<wl_buffer::WlBuffer>,
+}
 
 // State that implements all protocol dispatchers
-struct CompositorState;
+struct CompositorState {
+    surfaces: Arc<Mutex<HashMap<u32, SurfaceData>>>,
+    // DRM/framebuffer state (will be set later)
+    drm_state: Option<DrmState>,
+}
+
+struct DrmState {
+    card: Card,
+    fb_handle: drm::control::framebuffer::Handle,
+    crtc_handle: drm::control::crtc::Handle,
+    connector_handle: drm::control::connector::Handle,
+    mode: drm::control::Mode,
+    db: drm::control::dumbbuffer::DumbBuffer,
+}
 
 // Implement Dispatch for wl_compositor
 impl Dispatch<wl_compositor::WlCompositor, ()> for CompositorState {
@@ -54,26 +74,39 @@ impl Dispatch<wl_compositor::WlCompositor, ()> for CompositorState {
 // Implement Dispatch for wl_surface
 impl Dispatch<wl_surface::WlSurface, ()> for CompositorState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &Client,
-        _resource: &wl_surface::WlSurface,
+        resource: &wl_surface::WlSurface,
         request: wl_surface::Request,
         _data: &(),
         _dhandle: &wayland_server::DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
+        let surface_id = resource.id().protocol_id();
         match request {
             wl_surface::Request::Attach { buffer, x, y } => {
-                println!("✓ Surface attach: buffer={:?}, offset=({}, {})", buffer, x, y);
+                println!("✓ Surface {} attach: buffer={:?}, offset=({}, {})", surface_id, buffer, x, y);
+                // Store buffer in surface data
+                if let Ok(mut surfaces) = state.surfaces.lock() {
+                    surfaces.entry(surface_id).or_insert(SurfaceData { buffer: None }).buffer = buffer;
+                }
             }
             wl_surface::Request::Commit => {
-                println!("✓ Surface commit");
+                println!("✓ Surface {} commit", surface_id);
+                // In Phase 6, we would render the buffer here
+                if let Ok(surfaces) = state.surfaces.lock() {
+                    if let Some(surf_data) = surfaces.get(&surface_id) {
+                        if surf_data.buffer.is_some() {
+                            println!("  → Would render buffer here (Phase 6+)");
+                        }
+                    }
+                }
             }
             wl_surface::Request::Damage { x, y, width, height } => {
-                println!("✓ Surface damage: ({}, {}) {}x{}", x, y, width, height);
+                println!("✓ Surface {} damage: ({}, {}) {}x{}", surface_id, x, y, width, height);
             }
             _ => {
-                println!("✓ Surface request: {:?}", request);
+                println!("✓ Surface {} request: {:?}", surface_id, request);
             }
         }
     }
@@ -94,6 +127,66 @@ impl Dispatch<wl_region::WlRegion, ()> for CompositorState {
     }
 }
 
+// Implement Dispatch for wl_shm (shared memory)
+impl Dispatch<wl_shm::WlShm, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_shm::WlShm,
+        request: wl_shm::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_shm::Request::CreatePool { id, fd, size } => {
+                println!("✓ Client created SHM pool: fd={:?}, size={}", fd, size);
+                let _pool = data_init.init(id, ());
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_shm_pool
+impl Dispatch<wl_shm_pool::WlShmPool, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_shm_pool::WlShmPool,
+        request: wl_shm_pool::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wl_shm_pool::Request::CreateBuffer { id, offset, width, height, stride, format } => {
+                println!("✓ Client created buffer: {}x{} stride={} format={:?}", width, height, stride, format);
+                let _buffer = data_init.init(id, ());
+            }
+            wl_shm_pool::Request::Resize { size } => {
+                println!("✓ SHM pool resized to {}", size);
+            }
+            _ => {}
+        }
+    }
+}
+
+// Implement Dispatch for wl_buffer
+impl Dispatch<wl_buffer::WlBuffer, ()> for CompositorState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &wl_buffer::WlBuffer,
+        _request: wl_buffer::Request,
+        _data: &(),
+        _dhandle: &wayland_server::DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        // Buffers are mostly passive, destroyed when not needed
+    }
+}
+
 // Implement GlobalDispatch for wl_compositor
 use wayland_server::GlobalDispatch;
 
@@ -111,8 +204,26 @@ impl GlobalDispatch<wl_compositor::WlCompositor, ()> for CompositorState {
     }
 }
 
+// Implement GlobalDispatch for wl_shm
+impl GlobalDispatch<wl_shm::WlShm, ()> for CompositorState {
+    fn bind(
+        _state: &mut Self,
+        _handle: &wayland_server::DisplayHandle,
+        _client: &Client,
+        resource: New<wl_shm::WlShm>,
+        _global_data: &(),
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        println!("✓ Client bound to wl_shm");
+        let shm = data_init.init(resource, ());
+        // Advertise supported formats
+        shm.format(wl_shm::Format::Argb8888);
+        shm.format(wl_shm::Format::Xrgb8888);
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("compositor-rs v0.1.0 - Phase 5: Surface Creation");
+    println!("compositor-rs v0.1.0 - Phase 6: Buffer Rendering (SHM protocol)");
     println!();
 
     let card_path = "/dev/dri/card0";
@@ -216,7 +327,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ CRTC configured, displaying framebuffer!");
     println!();
     
-    // Phase 5: Create Wayland server with protocol support
+    // Phase 6: Create Wayland server with SHM support
     println!("Creating Wayland server...");
     
     // Set XDG_RUNTIME_DIR to /run/wayland
@@ -231,6 +342,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     display_handle.create_global::<CompositorState, wl_compositor::WlCompositor, _>(6, ());
     println!("✓ Created wl_compositor global (v6)");
     
+    // Create wl_shm global (version 1) for shared memory buffers
+    display_handle.create_global::<CompositorState, wl_shm::WlShm, _>(1, ());
+    println!("✓ Created wl_shm global (v1)");
+    
     // Create listening socket
     let socket = ListeningSocket::bind("wayland-0")?;
     let socket_name = socket.socket_name()
@@ -242,15 +357,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Compositor ready!");
     println!("  - Display: Orange screen at 640x480");
     println!("  - Socket: /run/wayland/{}", socket_name);
-    println!("  - Globals: wl_compositor v6");
+    println!("  - Globals: wl_compositor v6, wl_shm v1");
     println!("  - Clients can connect via WAYLAND_DISPLAY={}", socket_name);
     println!();
     
     // Run for 30 seconds with event loop
-    println!("Running for 30 seconds (accepting Wayland clients & surfaces)...");
+    println!("Running for 30 seconds (accepting Wayland clients & buffers)...");
     let start = std::time::Instant::now();
     let duration = std::time::Duration::from_secs(30);
-    let mut state = CompositorState;
+    let mut state = CompositorState {
+        surfaces: Arc::new(Mutex::new(HashMap::new())),
+        drm_state: None, // Would be initialized for actual rendering
+    };
     
     while start.elapsed() < duration {
         // Check for new client connections
@@ -282,6 +400,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     println!();
-    println!("Phase 5 complete - Surface protocol handled successfully!");
+    println!("Phase 6 complete - SHM buffer protocol handled successfully!");
     Ok(())
 }

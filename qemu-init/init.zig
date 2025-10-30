@@ -129,9 +129,7 @@ fn startSeatd() i32 {
 fn loadKernelModules() void {
     const modules = [_][]const u8{
         "/lib/modules/drm.ko",
-        "/lib/modules/drm_shmem_helper.ko",
-        "/lib/modules/drm_kms_helper.ko",
-        "/lib/modules/virtio_dma_buf.ko",
+        "/lib/modules/ttm.ko",
         "/lib/modules/virtio-gpu.ko",
     };
 

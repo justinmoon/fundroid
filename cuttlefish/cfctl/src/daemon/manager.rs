@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{self, Child, Command, Stdio},
@@ -10,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -31,8 +32,8 @@ const METADATA_FILE: &str = "metadata.json";
 /// Resolve a username to a UID using libc getpwnam
 fn resolve_uid(username: &str) -> Result<u32> {
     use std::ffi::CString;
-    let cname = CString::new(username)
-        .with_context(|| format!("invalid username: {}", username))?;
+    let cname =
+        CString::new(username).with_context(|| format!("invalid username: {}", username))?;
     unsafe {
         let pwd = libc::getpwnam(cname.as_ptr());
         if pwd.is_null() {
@@ -45,8 +46,8 @@ fn resolve_uid(username: &str) -> Result<u32> {
 /// Resolve a group name to a GID using libc getgrnam
 fn resolve_gid(groupname: &str) -> Result<u32> {
     use std::ffi::CString;
-    let cname = CString::new(groupname)
-        .with_context(|| format!("invalid group name: {}", groupname))?;
+    let cname =
+        CString::new(groupname).with_context(|| format!("invalid group name: {}", groupname))?;
     unsafe {
         let grp = libc::getgrnam(cname.as_ptr());
         if grp.is_null() {
@@ -54,6 +55,87 @@ fn resolve_gid(groupname: &str) -> Result<u32> {
         }
         Ok((*grp).gr_gid)
     }
+}
+
+struct CapabilityArgs {
+    bubblewrap: Option<String>,
+}
+
+fn resolve_group_list(groups: &[String]) -> Result<Vec<u32>> {
+    let mut gids = Vec::new();
+    for group in groups {
+        let resolved = resolve_gid(group)?;
+        gids.push(resolved);
+    }
+    Ok(gids)
+}
+
+fn capability_args(capabilities: &[String]) -> Result<CapabilityArgs> {
+    if capabilities.is_empty() {
+        return Ok(CapabilityArgs { bubblewrap: None });
+    }
+
+    let mut bubblewrap_args = Vec::new();
+
+    for capability in capabilities {
+        let trimmed = capability.trim();
+        if trimmed.is_empty() {
+            bail!("capability entries must not be empty");
+        }
+
+        let (bubblewrap_flag, name) = if let Some(rest) = trimmed.strip_prefix('+') {
+            ("--cap-add", rest)
+        } else if let Some(rest) = trimmed.strip_prefix('-') {
+            ("--cap-drop", rest)
+        } else {
+            ("--cap-add", trimmed)
+        };
+
+        let cap_key = name.trim();
+        if cap_key.is_empty() {
+            bail!("capability '{}' is missing a name", capability);
+        }
+
+        let canonical = {
+            let lower = cap_key.to_ascii_lowercase();
+            let normalized_key = lower.strip_prefix("cap_").unwrap_or(lower.as_str());
+            match normalized_key {
+                "net_admin" => "net_admin",
+                _ => bail!("unsupported capability '{}'", capability),
+            }
+        };
+
+        let bubblewrap_name = format!("cap_{}", canonical);
+        bubblewrap_args.push(format!("{} {}", bubblewrap_flag, bubblewrap_name));
+    }
+
+    Ok(CapabilityArgs {
+        bubblewrap: if bubblewrap_args.is_empty() {
+            None
+        } else {
+            Some(bubblewrap_args.join(" "))
+        },
+    })
+}
+
+fn parse_host_ip(host: &str) -> Result<IpAddr> {
+    if host.eq_ignore_ascii_case("localhost") {
+        return Ok(IpAddr::V4(Ipv4Addr::LOCALHOST));
+    }
+    host.parse::<IpAddr>()
+        .with_context(|| format!("invalid adb host '{}'", host))
+}
+
+fn normalize_unspecified(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(v4) if v4.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V6(v6) if v6.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ip => ip,
+    }
+}
+
+fn normalize_socket(addr: SocketAddr) -> SocketAddr {
+    SocketAddr::new(normalize_unspecified(addr.ip()), addr.port())
 }
 
 struct InstancePaths {
@@ -858,7 +940,8 @@ impl InstanceManager {
         if options.skip_adb_wait && options.verify_boot {
             return Err(error_detail(
                 "start_instance_invalid_options",
-                "cannot use both skip_adb_wait and verify_boot (boot verification requires ADB)".to_string(),
+                "cannot use both skip_adb_wait and verify_boot (boot verification requires ADB)"
+                    .to_string(),
             ));
         }
 
@@ -914,8 +997,13 @@ impl InstanceManager {
         let run_log = self
             .prepare_run_log(&paths)
             .map_err(|err| error_detail("start_instance_prepare_log", err.to_string()))?;
-        let child = match self.spawn_guest_process(id, &metadata, run_log, !options.disable_webrtc, options.track.as_deref())
-        {
+        let child = match self.spawn_guest_process(
+            id,
+            &metadata,
+            run_log,
+            !options.disable_webrtc,
+            options.track.as_deref(),
+        ) {
             Ok(child) => child,
             Err(err) => {
                 warn!(
@@ -960,25 +1048,27 @@ impl InstanceManager {
                 "start_instance: skipping adb wait for instance {} (skip_adb_wait enabled)",
                 id
             );
-            
-            let mut metadata = self
-                .metadata(id)
-                .map_err(|err| error_detail("start_instance_metadata_after_skip", err.to_string()))?;
+
+            let mut metadata = self.metadata(id).map_err(|err| {
+                error_detail("start_instance_metadata_after_skip", err.to_string())
+            })?;
             metadata.state = InstanceState::Running;
-            metadata.updated_at = epoch_secs()
-                .map_err(|err| error_detail("start_instance_timestamp_after_skip", err.to_string()))?;
+            metadata.updated_at = epoch_secs().map_err(|err| {
+                error_detail("start_instance_timestamp_after_skip", err.to_string())
+            })?;
             let paths = self.paths(id);
-            self.write_metadata(&paths, &metadata)
-                .map_err(|err| error_detail("start_instance_write_metadata_after_skip", err.to_string()))?;
+            self.write_metadata(&paths, &metadata).map_err(|err| {
+                error_detail("start_instance_write_metadata_after_skip", err.to_string())
+            })?;
             self.metadata_cache.insert(id, metadata.clone());
-            
+
             info!(
                 target: "cfctl",
                 "start_instance: instance {} started without adb wait; registering exit watcher",
                 id
             );
             self.spawn_exit_watcher(id, handle);
-            
+
             Ok(InstanceActionResponse {
                 summary: metadata.summary(&self.config.adb_host),
                 journal_tail: None,
@@ -1322,13 +1412,18 @@ impl InstanceManager {
         let mut metadata = self
             .metadata(id)
             .map_err(|err| error_detail("wait_for_adb_metadata", err.to_string()))?;
+        let configured_ip = parse_host_ip(&self.config.adb_host)
+            .map(normalize_unspecified)
+            .map_err(|err| error_detail("wait_for_adb_host", err.to_string()))?;
+        let serial_addr = normalize_socket(SocketAddr::new(configured_ip, metadata.adb_port));
+        let serial = serial_addr.to_string();
+        let connect_serial = serial.clone();
+        let fallback_serial = format!("0.0.0.0:{}", metadata.adb_port);
+        let addr = serial.clone();
         let timeout = timeout_secs
             .map(Duration::from_secs)
             .unwrap_or(self.config.adb_wait_timeout);
         let deadline = Instant::now() + timeout;
-        let serial = format!("{}:{}", self.config.adb_host, metadata.adb_port);
-        let connect_serial = format!("0.0.0.0:{}", metadata.adb_port);
-        let addr = format!("{}:{}", self.config.adb_host, metadata.adb_port);
 
         loop {
             let handle = match self.guest_registry.get(id) {
@@ -1393,7 +1488,7 @@ impl InstanceManager {
                 continue;
             }
 
-            match self.resolve_active_adb_serial(&serial, &connect_serial) {
+            match self.resolve_active_adb_serial(&serial, &fallback_serial) {
                 Ok(Some(_active_serial)) => {
                     metadata.state = InstanceState::Running;
                     metadata.updated_at = epoch_secs()
@@ -1463,8 +1558,13 @@ impl InstanceManager {
         let metadata = self
             .metadata(id)
             .map_err(|err| error_detail("verify_boot_metadata", err.to_string()))?;
-        let serial = format!("{}:{}", self.config.adb_host, metadata.adb_port);
-        let connect_serial = format!("0.0.0.0:{}", metadata.adb_port);
+        let configured_ip = parse_host_ip(&self.config.adb_host)
+            .map(normalize_unspecified)
+            .map_err(|err| error_detail("verify_boot_host", err.to_string()))?;
+        let serial_addr = normalize_socket(SocketAddr::new(configured_ip, metadata.adb_port));
+        let serial = serial_addr.to_string();
+        let connect_serial = serial.clone();
+        let fallback_serial = format!("0.0.0.0:{}", metadata.adb_port);
         let timeout = timeout_secs
             .filter(|secs| *secs > 0)
             .map(Duration::from_secs)
@@ -1491,7 +1591,7 @@ impl InstanceManager {
                 continue;
             }
 
-            let active_serial = match self.resolve_active_adb_serial(&serial, &connect_serial) {
+            let active_serial = match self.resolve_active_adb_serial(&serial, &fallback_serial) {
                 Ok(Some(serial)) => serial,
                 Ok(None) => {
                     if Instant::now() >= deadline {
@@ -1693,11 +1793,7 @@ impl InstanceManager {
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
-        info!(
-            target: "cfctl",
-            "verify_boot: adb connect succeeded for {}",
-            serial
-        );
+        info!(target: "cfctl", "adb connect succeeded for {}", serial);
         Ok(())
     }
 
@@ -1821,12 +1917,16 @@ impl InstanceManager {
         })
     }
 
-    fn describe(&mut self, id: InstanceId, run_log_lines: Option<usize>) -> Result<InstanceActionResponse> {
+    fn describe(
+        &mut self,
+        id: InstanceId,
+        run_log_lines: Option<usize>,
+    ) -> Result<InstanceActionResponse> {
         let metadata = self.metadata(id)?;
         let summary = metadata.summary(&self.config.adb_host);
         let lines = run_log_lines.unwrap_or(50);
         let run_log_tail = self.guest_log_tail(id, lines)?;
-        
+
         let paths = self.paths(id);
         let console_snapshot = paths.root.join("console_snapshot.log");
         let console_snapshot_path = if console_snapshot.exists() {
@@ -1834,7 +1934,7 @@ impl InstanceManager {
         } else {
             None
         };
-        
+
         Ok(InstanceActionResponse {
             summary,
             journal_tail: None,
@@ -2024,24 +2124,34 @@ impl InstanceManager {
         let inst_name = id.to_string();
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
-        
-        // Use sudo to switch user with configured primary group before entering FHS
-        // This preserves the group through bubblewrap's namespace isolation
         let target_user = &self.config.guest_user;
         let primary_group = &self.config.guest_primary_group;
-        
-        // Resolve UIDs/GIDs for logging
+        let supplementary_groups = &self.config.guest_supplementary_groups;
+
+        if !Path::new("/dev/vhost-vsock").exists() {
+            anyhow::bail!("/dev/vhost-vsock is missing; load vhost_vsock and vsock kernel modules on the host");
+        }
+
+        // Resolve IDs eagerly so we can surface configuration mistakes early
         let uid = resolve_uid(target_user)?;
         let gid = resolve_gid(primary_group)?;
-        
+        let supplementary_gid_values =
+            resolve_group_list(supplementary_groups).context("resolving supplementary groups")?;
+
+        let capability_args = capability_args(&self.config.guest_capabilities)?;
+
         info!(
             target: "cfctl",
-            "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} caps={:?}",
-            target_user, uid, primary_group, gid, self.config.guest_capabilities
+            "spawn_guest_process: dropping to uid={}:{} gid={}:{} supplementary gids={:?} caps={:?}",
+            target_user,
+            uid,
+            primary_group,
+            gid,
+            supplementary_gid_values,
+            self.config.guest_capabilities,
         );
-        
-        // Use sudo to switch to target user with primary group
-        // Preserve CUTTLEFISH_* environment variables that we set below
+
+        // Use sudo to switch to the configured credentials before entering the FHS wrapper
         let preserve_vars = vec![
             "CUTTLEFISH_INSTANCE",
             "CUTTLEFISH_INSTANCE_NUM",
@@ -2049,28 +2159,31 @@ impl InstanceManager {
             "CUTTLEFISH_DISABLE_HOST_GPU",
             "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR",
             "GFXSTREAM_HEADLESS",
+            "CUTTLEFISH_BWRAP_CAPS",
         ];
         let mut cmd = Command::new("sudo");
-        cmd.arg("-u").arg(target_user)
-           .arg("-g").arg(primary_group);
         for var in &preserve_vars {
             cmd.arg(format!("--preserve-env={}", var));
         }
         cmd.arg("--");
-        
-        // Add setpriv to set ambient capabilities if any are configured
-        if !self.config.guest_capabilities.is_empty() {
-            let caps_arg = self.config.guest_capabilities
+        cmd.arg("setpriv");
+        cmd.arg("--reuid").arg(uid.to_string());
+        cmd.arg("--regid").arg(gid.to_string());
+        if supplementary_gid_values.is_empty() {
+            cmd.arg("--clear-groups");
+        } else {
+            let groups_arg = supplementary_gid_values
                 .iter()
-                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
+                .map(|gid| gid.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
-            cmd.arg("setpriv")
-               .arg("--ambient-caps")
-               .arg(&caps_arg)
-               .arg("--");
+            cmd.arg(format!("--groups={}", groups_arg));
         }
-        
+        cmd.arg("--");
+        if let Some(ref caps) = capability_args.bubblewrap {
+            cmd.env("CUTTLEFISH_BWRAP_CAPS", caps);
+        }
+
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {
             info!(target: "cfctl", "spawn_guest_process: using track '{}'", t);
@@ -2079,8 +2192,7 @@ impl InstanceManager {
             info!(target: "cfctl", "spawn_guest_process: using default FHS wrapper");
             cmd.arg(&self.config.cuttlefish_fhs).arg("--");
         };
-        cmd
-            .arg("launch_cvd")
+        cmd.arg("launch_cvd")
             .arg(format!(
                 "--system_image_dir={}",
                 self.config.cuttlefish_system_image_dir.display()
@@ -2222,7 +2334,7 @@ impl InstanceManager {
         metadata.state = new_state.clone();
         metadata.updated_at = epoch_secs()?;
         let paths = self.paths(id);
-        
+
         if new_state == InstanceState::Failed {
             if let Err(err) = self.snapshot_console_on_failure(id, &paths) {
                 warn!(
@@ -2233,7 +2345,7 @@ impl InstanceManager {
                 );
             }
         }
-        
+
         self.write_metadata(&paths, &metadata)?;
         self.metadata_cache.insert(id, metadata.clone());
         self.cleanup_host_state(id);
@@ -2753,9 +2865,14 @@ impl InstanceManager {
         }
 
         let snapshot_path = paths.root.join("console_snapshot.log");
-        fs::copy(&console_log, &snapshot_path)
-            .with_context(|| format!("copying console log {} to {}", console_log.display(), snapshot_path.display()))?;
-        
+        fs::copy(&console_log, &snapshot_path).with_context(|| {
+            format!(
+                "copying console log {} to {}",
+                console_log.display(),
+                snapshot_path.display()
+            )
+        })?;
+
         info!(
             target: "cfctl",
             "snapshot_console_on_failure: saved console snapshot for instance {} to {}",

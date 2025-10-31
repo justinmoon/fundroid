@@ -1,6 +1,7 @@
 { lib, pkgs, cuttlefishBundle, trackName ? null }:
 
 let
+  origBubblewrap = pkgs.bubblewrap;
   # Package name includes track, but binary name is always cuttlefish-fhs for consistency
   fhsName = if trackName != null then "cuttlefish-fhs-${trackName}" else "cuttlefish-fhs";
   
@@ -15,8 +16,21 @@ let
     
     exec "$@"
   '';
+
+  bubblewrapWithCaps = pkgs.writeShellScriptBin "bwrap" ''
+    set -euo pipefail
+    if [ -n "''${CUTTLEFISH_BWRAP_CAPS:-}" ]; then
+      # shellcheck disable=SC2206 -- intentional splitting of capability fragments
+      set -- ''${CUTTLEFISH_BWRAP_CAPS} "$@"
+    fi
+    exec ${origBubblewrap}/bin/bwrap "$@"
+  '';
+
+  pkgsWithBubblewrap = pkgs.extend (_self: _super: {
+    bubblewrap = bubblewrapWithCaps;
+  });
 in
-pkgs.buildFHSEnvBubblewrap {
+pkgsWithBubblewrap.buildFHSEnvBubblewrap {
   name = fhsName;
 
   targetPkgs = pkgs': with pkgs'; [

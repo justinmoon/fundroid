@@ -40,8 +40,15 @@ if [ -f "drm_rect" ]; then
     cp drm_rect "$WORK_DIR/drm_rect"
     chmod +x "$WORK_DIR/drm_rect"
     
-    # Include required libraries for glibc
+    # Include required libraries (musl or glibc)
     mkdir -p "$WORK_DIR/lib64" "$WORK_DIR/lib"
+    
+    # Musl dynamic linker (for musl-built drm_rect)
+    if [ -f "ld-musl-x86_64.so.1" ]; then
+        cp ld-musl-x86_64.so.1 "$WORK_DIR/lib/"
+    fi
+    
+    # Glibc libraries (fallback for old glibc builds)
     if [ -f "ld-linux-x86-64.so.2" ]; then
         cp ld-linux-x86-64.so.2 "$WORK_DIR/lib64/"
     fi
@@ -55,7 +62,7 @@ if [ -f "drm_rect" ]; then
         cp libdrm.so.2 "$WORK_DIR/lib/"
     fi
     
-    echo "Including drm_rect in initramfs (with glibc libs)"
+    echo "Including drm_rect in initramfs (with musl/glibc libs)"
 fi
 
 # Include kernel modules if available

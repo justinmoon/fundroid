@@ -68,6 +68,9 @@
         packages = if pkgs.stdenv.isLinux then {
           inherit (cuttlefish.packages.${system}) cfctl;
           weston-rootfs = pkgs.callPackage ./qemu-init/nix/weston-rootfs.nix {};
+          
+          # Custom kernel with virtio-gpu and virtio-input support
+          qemu-kernel = pkgs.callPackage ./qemu-init/nix/kernel.nix {};
         } else {};
         
         devShells.default = pkgs.mkShell {

@@ -98,7 +98,8 @@ fn capability_args(capabilities: &[String]) -> Result<CapabilityArgs> {
             }
         };
 
-        let bubblewrap_name = format!("cap_{}", canonical);
+        // Use uppercase for bubblewrap (as per bwrap man page)
+        let bubblewrap_name = format!("CAP_{}", canonical.to_uppercase());
         bubblewrap_args.push(format!("{} {}", bubblewrap_flag, bubblewrap_name));
         ambient_args.push(format!("{}{}", ambient_flag, canonical));
     }

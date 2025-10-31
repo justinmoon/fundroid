@@ -113,51 +113,51 @@ pkgs.runCommand fhsName {
         ${pkgs.python3}/bin/python3 - "$target" <<'PY'
 import sys
 from pathlib import Path
-import re
 
 script_path = Path(sys.argv[1])
 lines = script_path.read_text().splitlines()
 
-# Find the cmd array closing and exec line
-cmd_start = None
-cmd_close = None
+# Find the exec line
 exec_line = None
-
 for idx, line in enumerate(lines):
-    if line.startswith("cmd=("):
-        cmd_start = idx
-    elif cmd_start is not None and cmd_close is None and line.strip() == ")":
-        cmd_close = idx
-    elif line.startswith("exec \"") and "cmd[@]" in line:
+    if line.startswith("exec \"") and "cmd[@]" in line:
         exec_line = idx
         break
 
-if exec_line is None or cmd_start is None or cmd_close is None:
+if exec_line is None:
     # Script doesn't have the expected pattern, skip modification
     sys.exit(0)
 
 # Insert capability handling code before exec
-# We need to modify the cmd array construction to insert caps before the last element
+# We need to find container-init and insert caps BEFORE it
 snippet = [
     "",
-    "# Add capability arguments before the wrapped command",
-    "if [ -n \"''${CUTTLEFISH_BWRAP_CAPS:-}\" ]; then",
-    "  if [[ -u \"''${cmd[0]}\" ]]; then",
-    "    # Get the last element (wrapped command)",
-    "    last_idx=$((''${#cmd[@]} - 1))",
-    "    last_elem=\"''${cmd[$last_idx]}\"",
-    "    # Remove last element",
-    "    unset 'cmd[$last_idx]'",
-    "    # Add capability args",
-    "    # shellcheck disable=SC2206 -- splitting is intentional for cap fragments",
-    "    cmd+=( ''${CUTTLEFISH_BWRAP_CAPS} )",
-    "    # Re-add last element",
-    "    cmd+=(\"$last_elem\")",
+    "# Add capability arguments before container-init (so bwrap sees them)",
+    "if [[ -n ''${CUTTLEFISH_BWRAP_CAPS:-} && -u ''${cmd[0]} ]]; then",
+    "  # Locate the container-init element",
+    "  ci_idx=-1",
+    "  for i in \"''${!cmd[@]}\"; do",
+    "    [[ ''${cmd[$i]} == /nix/store/*-container-init ]] && { ci_idx=$i; break; }",
+    "  done",
+    "",
+    "  if (( ci_idx != -1 )); then",
+    "    # Split caps safely into words",
+    "    read -r -a __caps <<<\"''${CUTTLEFISH_BWRAP_CAPS}\"",
+    "    # Rebuild argv: [bwrap ... <caps> container-init \"$@\"]",
+    "    set -- \"''${cmd[@]:0:ci_idx}\" \"''${__caps[@]}\" \"''${cmd[@]:ci_idx}\"",
+    "",
+    "    # Optional tracing",
+    "    if [[ -n ''${CUTTLEFISH_BWRAP_TRACE:-} ]]; then",
+    "      for j in \"$@\"; do printf 'argv: %q\\n' \"$j\"; done >&2",
+    "    fi",
+    "",
+    "    exec \"$@\"",
     "  else",
-    "    echo \"cuttlefish-fhs: skipping CUTTLEFISH_BWRAP_CAPS; ''${cmd[0]} lacks setuid\" >&2",
+    "    echo \"cuttlefish-fhs: container-init not found; not injecting caps\" >&2",
     "  fi",
     "fi",
     "",
+    "# Fallback: original path",
 ]
 
 lines[exec_line:exec_line] = snippet

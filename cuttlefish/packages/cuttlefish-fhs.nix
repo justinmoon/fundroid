@@ -113,70 +113,52 @@ pkgs.runCommand fhsName {
         ${pkgs.python3}/bin/python3 - "$target" <<'PY'
 import sys
 from pathlib import Path
+import re
 
 script_path = Path(sys.argv[1])
 lines = script_path.read_text().splitlines()
 
-# Find the cmd array and the "--" separator line
+# Find the cmd array closing and exec line
 cmd_start = None
-separator_line = None
+cmd_close = None
 exec_line = None
 
 for idx, line in enumerate(lines):
     if line.startswith("cmd=("):
         cmd_start = idx
-    elif cmd_start is not None and separator_line is None and line.strip() == "--":
-        separator_line = idx
+    elif cmd_start is not None and cmd_close is None and line.strip() == ")":
+        cmd_close = idx
     elif line.startswith("exec \"") and "cmd[@]" in line:
         exec_line = idx
         break
 
-if exec_line is None or cmd_start is None:
+if exec_line is None or cmd_start is None or cmd_close is None:
     # Script doesn't have the expected pattern, skip modification
     sys.exit(0)
 
 # Insert capability handling code before exec
-# If we found the separator, we'll insert caps before it
-if separator_line is not None:
-    snippet = [
-        "",
-        "# Insert capability arguments before the -- separator",
-        "if [ -n \"''${CUTTLEFISH_BWRAP_CAPS:-}\" ]; then",
-        "  if [[ -u \"''${cmd[0]}\" ]]; then",
-        "    # Find the -- separator and insert caps before it",
-        "    new_cmd=()",
-        "    found_sep=false",
-        "    for arg in \"''${cmd[@]}\"; do",
-        "      if [ \"$arg\" = \"--\" ] && [ \"$found_sep\" = \"false\" ]; then",
-        "        # Insert caps before --",
-        "        for cap_arg in ''${CUTTLEFISH_BWRAP_CAPS}; do",
-        "          new_cmd+=(\"$cap_arg\")",
-        "        done",
-        "        found_sep=true",
-        "      fi",
-        "      new_cmd+=(\"$arg\")",
-        "    done",
-        "    cmd=(\"''${new_cmd[@]}\")",
-        "  else",
-        "    echo \"cuttlefish-fhs: skipping CUTTLEFISH_BWRAP_CAPS; ''${cmd[0]} lacks setuid\" >&2",
-        "  fi",
-        "fi",
-        "",
-    ]
-else:
-    # No separator found, add at end as fallback
-    snippet = [
-        "",
-        "if [ -n \"''${CUTTLEFISH_BWRAP_CAPS:-}\" ]; then",
-        "  if [[ -u \"''${cmd[0]}\" ]]; then",
-        "    # shellcheck disable=SC2206 -- splitting is intentional for cap fragments",
-        "    cmd+=( ''${CUTTLEFISH_BWRAP_CAPS} )",
-        "  else",
-        "    echo \"cuttlefish-fhs: skipping CUTTLEFISH_BWRAP_CAPS; ''${cmd[0]} lacks setuid\" >&2",
-        "  fi",
-        "fi",
-        "",
-    ]
+# We need to modify the cmd array construction to insert caps before the last element
+snippet = [
+    "",
+    "# Add capability arguments before the wrapped command",
+    "if [ -n \"''${CUTTLEFISH_BWRAP_CAPS:-}\" ]; then",
+    "  if [[ -u \"''${cmd[0]}\" ]]; then",
+    "    # Get the last element (wrapped command)",
+    "    last_idx=$((''${#cmd[@]} - 1))",
+    "    last_elem=\"''${cmd[$last_idx]}\"",
+    "    # Remove last element",
+    "    unset 'cmd[$last_idx]'",
+    "    # Add capability args",
+    "    # shellcheck disable=SC2206 -- splitting is intentional for cap fragments",
+    "    cmd+=( ''${CUTTLEFISH_BWRAP_CAPS} )",
+    "    # Re-add last element",
+    "    cmd+=(\"$last_elem\")",
+    "  else",
+    "    echo \"cuttlefish-fhs: skipping CUTTLEFISH_BWRAP_CAPS; ''${cmd[0]} lacks setuid\" >&2",
+    "  fi",
+    "fi",
+    "",
+]
 
 lines[exec_line:exec_line] = snippet
 script_path.write_text("\n".join(lines) + "\n")

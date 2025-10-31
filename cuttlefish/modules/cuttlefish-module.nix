@@ -241,7 +241,6 @@ in {
       security.wrappers.bwrap = {
         owner = "root";
         group = "root";
-        capabilities = "cap_net_admin,cap_sys_admin,cap_mknod=ep";
         source = "${lib.getBin pkgs.bubblewrap}/bin/bwrap";
         setuid = true;
       };

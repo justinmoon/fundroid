@@ -149,7 +149,7 @@ if [ -L "weston-rootfs" ]; then
         mkdir -p "$WORK_DIR/usr/lib" "$WORK_DIR/lib" "$WORK_DIR/lib64"
         chmod -R +w "$WORK_DIR/usr/lib" "$WORK_DIR/lib" "$WORK_DIR/lib64" 2>/dev/null || true
         # Copy to /usr/lib (where Weston looks first)
-        cp local-libs/*.so* "$WORK_DIR/usr/lib/" 2>/dev/null
+        cp local-libs/*.so* "$WORK_DIR/usr/lib/" 2>/dev/null || true
         # Also copy to /lib and /lib64 for consistency
         cp local-libs/libc.so* local-libs/libm.so* local-libs/libpthread.so* "$WORK_DIR/lib/" 2>/dev/null || true
         cp local-libs/ld-linux-x86-64.so* "$WORK_DIR/lib64/" 2>/dev/null || true

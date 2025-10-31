@@ -68,6 +68,8 @@ if [ "$GUI_MODE" = true ]; then
         QEMU_CMD="$QEMU_CMD -display sdl,gl=on"
     fi
     QEMU_CMD="$QEMU_CMD -device virtio-gpu-pci"
+    QEMU_CMD="$QEMU_CMD -device virtio-keyboard-pci"
+    QEMU_CMD="$QEMU_CMD -device virtio-mouse-pci"
     QEMU_CMD="$QEMU_CMD -vga none"
     QEMU_CMD="$QEMU_CMD -serial stdio"
     QEMU_CMD="$QEMU_CMD -m 1024M"

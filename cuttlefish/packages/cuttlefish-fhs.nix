@@ -15,8 +15,9 @@ let
     
     exec "$@"
   '';
-in
-pkgs.buildFHSEnvBubblewrap {
+
+  # Base FHS environment
+  baseFHS = pkgs.buildFHSEnvBubblewrap {
   name = fhsName;
 
   targetPkgs = pkgs': with pkgs'; [
@@ -75,16 +76,41 @@ if __name__ == "__main__":
     main()
 EOF
     chmod +x $out/usr/lib64/cuttlefish-common/bin/capability_query.py
+  '';
 
-    # Replace hardcoded bwrap path with the setuid wrapper from /run/wrappers/bin
-    # Also allow the wrapper to grant capabilities requested via CUTTLEFISH_BWRAP_CAPS.
-    # This keeps CAP handling configurable from cfctl instead of hardcoding net_admin.
-    # Note: buildFHSEnvBubblewrap creates the script directly at $out, not in $out/bin/
-    if [ -f "$out" ]; then
-      chmod +w "$out"
-      # Replace nix store bwrap path with system wrapper
-      sed -i 's|/nix/store/[^/]*/bin/bwrap|/run/wrappers/bin/bwrap|g' "$out"
-      python3 - "$out" <<'PY'
+  runScript = entrypoint;
+  };
+
+in
+# Wrap the base FHS to replace bwrap path and add capability support
+pkgs.runCommand fhsName {
+  inherit (baseFHS) meta;
+  passthru = baseFHS.passthru or {};
+} ''
+  mkdir -p $out/bin
+  
+  # Copy or link everything from base FHS
+  for item in ${baseFHS}/*; do
+    if [ "$(basename "$item")" != "bin" ]; then
+      ln -s "$item" $out/
+    fi
+  done
+  
+  # Process bin directory
+  if [ -d "${baseFHS}/bin" ]; then
+    for item in ${baseFHS}/bin/*; do
+      target="$out/bin/$(basename "$item")"
+      
+      # If it's a script file, modify it
+      if [ -f "$item" ] && head -n1 "$item" | grep -q '^#!'; then
+        cp "$item" "$target"
+        chmod +w "$target"
+        
+        # Replace nix store bwrap path with system wrapper  
+        sed -i 's|/nix/store/[^/]*/bin/bwrap|/run/wrappers/bin/bwrap|g' "$target"
+        
+        # Add CUTTLEFISH_BWRAP_CAPS support
+        ${pkgs.python3}/bin/python3 - "$target" <<'PY'
 import sys
 from pathlib import Path
 
@@ -98,7 +124,8 @@ for idx, line in enumerate(lines):
         break
 
 if insert_index is None:
-    sys.exit(f"did not find command execution in {script_path}")
+    # Script doesn't have the expected pattern, skip modification
+    sys.exit(0)
 
 snippet = [
     "",
@@ -114,12 +141,14 @@ snippet = [
 ]
 
 lines[insert_index:insert_index] = snippet
-
 script_path.write_text("\n".join(lines) + "\n")
 PY
-      chmod +x "$out"
-    fi
-  '';
-
-  runScript = entrypoint;
-}
+        
+        chmod +x "$target"
+      else
+        # Just symlink non-script files
+        ln -s "$item" "$target"
+      fi
+    done
+  fi
+''

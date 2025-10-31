@@ -68,6 +68,7 @@
         packages = if pkgs.stdenv.isLinux then {
           inherit (cuttlefish.packages.${system}) cfctl;
           weston-rootfs = pkgs.callPackage ./qemu-init/nix/weston-rootfs.nix {};
+          qemu-kernel = pkgs.callPackage ./qemu-init/nix/kernel.nix {};
         } else {};
         
         devShells.default = pkgs.mkShell {

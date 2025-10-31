@@ -1,0 +1,25 @@
+# Environment profile for Wayland/Weston
+# Sourced by the init system before starting compositors
+
+# Wayland runtime directory (for sockets and shared memory)
+export XDG_RUNTIME_DIR=/run/wayland
+
+# Disable abstract socket FDs (use filesystem sockets only)
+# Helps with debugging and compatibility in minimal environments
+export WESTON_DISABLE_ABSTRACT_FD=1
+
+# WLR (wlroots) backend selection (for compositors like Cage)
+# Force DRM backend for direct kernel mode setting
+export WLR_BACKENDS=drm
+
+# Library path for Weston and dependencies
+export LD_LIBRARY_PATH=/usr/lib:/usr/lib/weston:/lib:/lib64
+
+# Binary path
+export PATH=/usr/bin:/bin
+
+# Seat management
+export SEATD_VTBOUND=1
+
+# Default Wayland display socket
+export WAYLAND_DISPLAY=wayland-0

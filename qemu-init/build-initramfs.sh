@@ -16,7 +16,15 @@ fi
 # Build weston-rootfs if not already built
 if [ ! -L "weston-rootfs" ]; then
     echo "Building weston-rootfs package..."
-    nix build ..#weston-rootfs --out-link weston-rootfs
+    # Force x86_64-linux target since weston-rootfs is Linux-only
+    # Note: This requires either Linux host or remote builder configured
+    if nix build ..#packages.x86_64-linux.weston-rootfs --out-link weston-rootfs 2>/dev/null; then
+        echo "Successfully built weston-rootfs"
+    else
+        echo "WARNING: Failed to build weston-rootfs (requires Linux or remote builder)"
+        echo "         Weston compositor will not be available in this initramfs"
+        echo "         Other graphics modes (drm_rect) will still work"
+    fi
 else
     echo "Using existing weston-rootfs"
 fi

@@ -1,5 +1,13 @@
 { pkgs ? import <nixpkgs> {} }:
 
+# Build a complete rootfs with all runtime dependencies for Weston
+# Uses buildEnv to create a unified directory structure
+
+let
+  # Get all runtime dependencies of weston
+  westonClosure = pkgs.closureInfo { rootPaths = [ pkgs.weston ]; };
+in
+
 pkgs.buildEnv {
   name = "weston-rootfs";
   
@@ -14,8 +22,18 @@ pkgs.buildEnv {
     
     # Session/Seat Management
     seatd
-    libinput
+    libinput.out      # Explicitly get the library output
     libxkbcommon
+    
+    # Additional runtime dependencies that buildEnv might miss
+    glib
+    expat
+    libffi
+    pcre2
+    util-linux  # For libuuid, libmount
+    systemd     # For libudev
+    mtdev
+    libevdev
     
     # Input/Event Handling
     libevdev

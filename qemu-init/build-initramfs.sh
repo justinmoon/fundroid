@@ -22,7 +22,7 @@ else
 fi
 
 WORK_DIR=$(mktemp -d)
-trap "rm -rf '$WORK_DIR'" EXIT
+trap "rm -rf '$WORK_DIR' 2>/dev/null || true" EXIT
 
 cp init "$WORK_DIR/init"
 chmod +x "$WORK_DIR/init"

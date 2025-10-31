@@ -76,11 +76,14 @@ if __name__ == "__main__":
 EOF
     chmod +x $out/usr/lib64/cuttlefish-common/bin/capability_query.py
 
-    # Allow the wrapper to grant capabilities requested via CUTTLEFISH_BWRAP_CAPS.
+    # Replace hardcoded bwrap path with the setuid wrapper from /run/wrappers/bin
+    # Also allow the wrapper to grant capabilities requested via CUTTLEFISH_BWRAP_CAPS.
     # This keeps CAP handling configurable from cfctl instead of hardcoding net_admin.
     for script in $out/bin/${fhsName} $out/bin/${fhsName}-shell; do
       if [ -f "$script" ]; then
         chmod +w "$script"
+        # Replace nix store bwrap path with system wrapper
+        sed -i 's|/nix/store/[^/]*/bin/bwrap|/run/wrappers/bin/bwrap|g' "$script"
         python3 - "$script" <<'PY'
 import sys
 from pathlib import Path

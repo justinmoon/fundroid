@@ -237,6 +237,15 @@ in {
         home = cfg.dataDir;
       };
       
+      # Enable bubblewrap with setuid for capability management
+      security.wrappers.bwrap = {
+        owner = "root";
+        group = "root";
+        capabilities = "cap_net_admin,cap_sys_admin,cap_mknod=ep";
+        source = "${lib.getBin pkgs.bubblewrap}/bin/bwrap";
+        setuid = true;
+      };
+      
       # Export cfenv if using multi-track mode
       environment.systemPackages = lib.optionals (!useLegacyMode) [
         cfenvWrapper

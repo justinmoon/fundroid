@@ -79,12 +79,12 @@ EOF
     # Replace hardcoded bwrap path with the setuid wrapper from /run/wrappers/bin
     # Also allow the wrapper to grant capabilities requested via CUTTLEFISH_BWRAP_CAPS.
     # This keeps CAP handling configurable from cfctl instead of hardcoding net_admin.
-    for script in $out/bin/${fhsName} $out/bin/${fhsName}-shell; do
-      if [ -f "$script" ]; then
-        chmod +w "$script"
-        # Replace nix store bwrap path with system wrapper
-        sed -i 's|/nix/store/[^/]*/bin/bwrap|/run/wrappers/bin/bwrap|g' "$script"
-        python3 - "$script" <<'PY'
+    # Note: buildFHSEnvBubblewrap creates the script directly at $out, not in $out/bin/
+    if [ -f "$out" ]; then
+      chmod +w "$out"
+      # Replace nix store bwrap path with system wrapper
+      sed -i 's|/nix/store/[^/]*/bin/bwrap|/run/wrappers/bin/bwrap|g' "$out"
+      python3 - "$out" <<'PY'
 import sys
 from pathlib import Path
 
@@ -117,9 +117,8 @@ lines[insert_index:insert_index] = snippet
 
 script_path.write_text("\n".join(lines) + "\n")
 PY
-        chmod +x "$script"
-      fi
-    done
+      chmod +x "$out"
+    fi
   '';
 
   runScript = entrypoint;

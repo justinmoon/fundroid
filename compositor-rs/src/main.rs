@@ -760,7 +760,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(name) = path.file_name() {
                 if name.to_string_lossy().starts_with("event") {
                     match Device::open(&path) {
-                        Ok(mut device) => {
+                        Ok(device) => {
+                            // Set non-blocking mode for polling (manual fcntl since evdev 0.12 doesn't have set_nonblocking)
+                            use std::os::unix::io::AsRawFd;
+                            unsafe {
+                                let fd = device.as_raw_fd();
+                                let flags = libc::fcntl(fd, libc::F_GETFL);
+                                if flags >= 0 {
+                                    libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+                                }
+                            }
+                            
                             let dev_name = device.name().unwrap_or("unknown");
                             println!("✓ Opened input device: {} ({})", path.display(), dev_name);
                             input_devices.push(device);
@@ -808,12 +818,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         // Phase 7: Read input events from all devices (non-blocking)
         for device in &mut input_devices {
-            // Fetch events (non-blocking)
+            use evdev::InputEventKind;
+            
+            // Fetch events (non-blocking) - returns an iterator
             match device.fetch_events() {
-                Ok(events) => {
-                    for event in events {
-                        use evdev::InputEventKind;
-                        
+                Ok(iterator) => {
+                    for event in iterator {
                         // Filter for key events
                         if let InputEventKind::Key(key) = event.kind() {
                             let key_code = key.code();
@@ -837,6 +847,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             key_code, key_state);
                                         
                                         keyboard.key(serial, time_ms, key_code as u32, key_state);
+                                    } else {
+                                        println!("[INPUT DEBUG] Key detected but no keyboard_resource: code={} state={:?}", 
+                                            key_code, key_state);
                                     }
                                 }
                             }

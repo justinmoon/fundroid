@@ -70,7 +70,7 @@ if [ "$GUI_MODE" = true ]; then
     QEMU_CMD="$QEMU_CMD -device virtio-gpu-pci"
     QEMU_CMD="$QEMU_CMD -vga none"
     QEMU_CMD="$QEMU_CMD -serial stdio"
-    QEMU_CMD="$QEMU_CMD -m 1024M"
+    QEMU_CMD="$QEMU_CMD -m 2048M"  # Increased to 2GB for large initramfs
     
     echo "Running: $QEMU_CMD"
     eval "$QEMU_CMD"

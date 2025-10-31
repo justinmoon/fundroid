@@ -479,19 +479,16 @@ pub fn main() void {
             createDirectory("/var");
             createDirectory("/var/log");
             
-            // Start seatd first (seat management daemon)
-            print("\n[PHASE 5] Starting seatd...\n", .{});
-            seatd_pid = startSeatd();
-            if (seatd_pid > 0) {
-                print("[PHASE 5] seatd is running, Weston will be able to access devices\n", .{});
-            } else {
-                print("[PHASE 5] WARNING: seatd failed to start, Weston may not work properly\n", .{});
-            }
+            // SKIP seatd due to stack smashing issue (glibc incompatibility)
+            // Weston can run as root without seatd for graphics-only testing
+            print("\n[PHASE 5] Skipping seatd (stack smashing issue), running Weston as root...\n", .{});
             
-            // Start Weston compositor
+            // Start Weston compositor directly
             weston_pid = startWeston();
             if (weston_pid <= 0) {
                 print("[ERROR] Failed to start Weston\n", .{});
+            } else {
+                print("[WESTON] Running as root (no seatd seat management)\n", .{});
             }
         }
     }

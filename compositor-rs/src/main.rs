@@ -31,6 +31,8 @@ use wayland_server::protocol::{wl_seat, wl_pointer, wl_keyboard};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
+use evdev::Device;
+use std::fs::read_dir;
 
 // SHM pool data - stores fd for later mapping
 struct ShmPoolData {
@@ -750,8 +752,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
     };
     
-    // Simple test: After 5 seconds, send a simulated keyboard event to any connected surface
-    let mut test_event_sent = false;
+    // Phase 7: Open input devices from /dev/input/event*
+    let mut input_devices = Vec::new();
+    if let Ok(entries) = read_dir("/dev/input") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(name) = path.file_name() {
+                if name.to_string_lossy().starts_with("event") {
+                    match Device::open(&path) {
+                        Ok(mut device) => {
+                            let dev_name = device.name().unwrap_or("unknown");
+                            println!("✓ Opened input device: {} ({})", path.display(), dev_name);
+                            input_devices.push(device);
+                        }
+                        Err(e) => eprintln!("Failed to open {}: {}", path.display(), e),
+                    }
+                }
+            }
+        }
+    } else {
+        println!("Warning: Could not read /dev/input - input events will not work");
+    }
     
     while start.elapsed() < duration {
         // Check for new client connections
@@ -785,21 +806,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Flush client messages
         display.flush_clients()?;
         
-        // Phase 7 test: Send simulated keyboard event after 5 seconds
-        if !test_event_sent && start.elapsed() > std::time::Duration::from_secs(5) {
-            if let Ok(input) = state.input_state.lock() {
-                if let Some(ref keyboard) = input.keyboard_resource {
-                    println!("\n[INPUT TEST] Simulating keyboard event (key 'A' press)");
-                    
-                    // Send keyboard key event (key code 30 = 'A', pressed)
-                    let serial = 1;
-                    let time_ms = start.elapsed().as_millis() as u32;
-                    let key = 30; // Linux key code for 'A'
-                    let state_pressed = wl_keyboard::KeyState::Pressed;
-                    
-                    keyboard.key(serial, time_ms, key, state_pressed);
-                    println!("[INPUT TEST] Sent key event to client");
-                    test_event_sent = true;
+        // Phase 7: Read input events from all devices (non-blocking)
+        for device in &mut input_devices {
+            // Fetch events (non-blocking)
+            match device.fetch_events() {
+                Ok(events) => {
+                    for event in events {
+                        use evdev::InputEventKind;
+                        
+                        // Filter for key events
+                        if let InputEventKind::Key(key) = event.kind() {
+                            let key_code = key.code();
+                            let value = event.value();
+                            
+                            // value: 0=release, 1=press, 2=repeat
+                            if value == 1 || value == 0 {
+                                let key_state = if value == 1 {
+                                    wl_keyboard::KeyState::Pressed
+                                } else {
+                                    wl_keyboard::KeyState::Released
+                                };
+                                
+                                // Send to focused surface
+                                if let Ok(input) = state.input_state.lock() {
+                                    if let Some(ref keyboard) = input.keyboard_resource {
+                                        let time_ms = start.elapsed().as_millis() as u32;
+                                        let serial = time_ms;
+                                        
+                                        println!("[INPUT] Key event: code={} state={:?}", 
+                                            key_code, key_state);
+                                        
+                                        keyboard.key(serial, time_ms, key_code as u32, key_state);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No events available - this is expected in non-blocking mode
+                }
+                Err(e) => {
+                    eprintln!("Error reading events: {}", e);
                 }
             }
         }

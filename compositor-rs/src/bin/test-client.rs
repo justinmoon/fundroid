@@ -14,6 +14,8 @@ struct AppData {
     surface: Option<wl_surface::WlSurface>,
     frame_received: bool,
     key_received: bool,
+    keys_pressed: Vec<u32>,  // Track which keys were pressed
+    needs_redraw: bool,      // Flag to redraw on key press
 }
 
 // Implement Dispatch for wl_registry to bind globals
@@ -190,6 +192,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for AppData {
             wl_keyboard::Event::Key { serial, time, key, state: key_state } => {
                 println!("[client] ✓ KEY EVENT: serial={}, time={}, key={}, state={:?}", serial, time, key, key_state);
                 state.key_received = true;
+                
+                // Add key to our list and trigger redraw (only on key press, not release)
+                use wayland_client::WEnum;
+                if matches!(key_state, WEnum::Value(wl_keyboard::KeyState::Pressed)) {
+                    state.keys_pressed.push(key);
+                    if state.keys_pressed.len() > 20 {
+                        state.keys_pressed.remove(0);  // Keep only last 20 keys
+                    }
+                    state.needs_redraw = true;
+                    println!("[client] >>> Press detected! Will redraw with {} blocks <<<", state.keys_pressed.len());
+                }
             }
             wl_keyboard::Event::Modifiers { serial, mods_depressed, mods_latched, mods_locked, group } => {
                 println!("[client] Modifiers: serial={}, dep={}, lat={}, lock={}, group={}", 
@@ -225,6 +238,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         surface: None,
         frame_received: false,
         key_received: false,
+        keys_pressed: Vec::new(),
+        needs_redraw: false,
     };
 
     // First roundtrip to get globals
@@ -338,21 +353,78 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("- Submitted buffer to compositor");
         println!("- Received frame callback");
         println!("\nPhase 6: 11/11 acceptance criteria met! 🎉");
-        println!("\n[client] Keeping gradient visible for 15 seconds (waiting for input test)...");
+        println!();
+        println!("===========================================");
+        println!("INTERACTIVE MODE!");
+        println!("===========================================");
+        println!("Press keys in the QEMU window!");
+        println!("You'll see colored blocks appear at the bottom");
+        println!("Will run for 30 seconds...");
+        println!("===========================================");
+        println!();
         
-        // Wait for simulated keyboard event (sent after 5 seconds by compositor)
-        let wait_start = std::time::Instant::now();
-        while !app_data.key_received && wait_start.elapsed() < std::time::Duration::from_secs(15) {
-            event_queue.roundtrip(&mut app_data)?;
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        // Interactive loop - redraw when keys are pressed
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_secs(30) {
+            event_queue.dispatch_pending(&mut app_data)?;
+            
+            if app_data.needs_redraw {
+                println!("[client] >>> REDRAWING with {} key blocks <<<", app_data.keys_pressed.len());
+                
+                // Redraw the gradient with colored blocks for each key
+                for y in 0..height {
+                    for x in 0..width {
+                        let r = (x * 255 / width) as u32;
+                        let b = (y * 255 / height) as u32;
+                        let pixel = 0xFF000000 | (r << 16) | b;
+                        pixel_slice[(y * width + x) as usize] = pixel;
+                    }
+                }
+                
+                // Draw colored blocks for each key pressed (at bottom of window)
+                let block_size = 15;
+                for (i, &key) in app_data.keys_pressed.iter().enumerate() {
+                    let block_x = 10 + (i as i32 * (block_size + 3));
+                    let block_y = height - 30;
+                    
+                    // Use key code to generate unique color
+                    let r = ((key * 123) % 200 + 55) as u32;
+                    let g = ((key * 456) % 200 + 55) as u32;
+                    let b_val = ((key * 789) % 200 + 55) as u32;
+                    let color = 0xFF000000 | (r << 16) | (g << 8) | b_val;
+                    
+                    // Draw block
+                    for dy in 0..block_size {
+                        for dx in 0..block_size {
+                            let px = block_x + dx;
+                            let py = block_y + dy;
+                            if px >= 0 && px < width && py >= 0 && py < height {
+                                pixel_slice[(py * width + px) as usize] = color;
+                            }
+                        }
+                    }
+                }
+                
+                // Submit updated buffer
+                surface.attach(Some(&buffer), 0, 0);
+                surface.damage(0, 0, width, height);
+                surface.commit();
+                
+                app_data.needs_redraw = false;
+                println!("[client] >>> Buffer updated and committed! <<<");
+            }
+            
+            std::thread::sleep(std::time::Duration::from_millis(16));
         }
         
-        if app_data.key_received {
-            println!("\n✓ Phase 7: Input event received successfully!");
-        } else {
-            println!("\n(No input event received - compositor may not support input yet)");
+        println!();
+        println!("===========================================");
+        println!("✓ Interactive demo complete!");
+        println!("  {} keys pressed", app_data.keys_pressed.len());
+        if app_data.keys_pressed.len() > 0 {
+            println!("  Phase 9 SUCCESS: Input working!");
         }
-        
+        println!("===========================================");
         println!("[client] Exiting...");
         Ok(())
     } else {

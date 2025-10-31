@@ -724,6 +724,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Clients can connect via WAYLAND_DISPLAY={}", socket_name);
     println!();
     
+    // Phase 9: test-client already running (launched by init.zig)
+    // It renders a gradient and accepts keyboard input
+    println!("Phase 9: test-client provides keyboard demo");
+    
     // Store DRM state for rendering
     let drm_state = DrmState {
         card: Arc::new(Mutex::new(card)),

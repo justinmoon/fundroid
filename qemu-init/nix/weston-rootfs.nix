@@ -1,6 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
-pkgs.buildEnv {
+# Use symlinkJoin instead of buildEnv to get better library linking
+pkgs.symlinkJoin {
   name = "weston-rootfs";
   
   paths = with pkgs; [
@@ -8,9 +9,10 @@ pkgs.buildEnv {
     weston
     mesa
     libdrm
-    wayland
+    wayland  # Provides libwayland-client.so, libwayland-server.so, etc.
     wayland-protocols
     pixman
+    # Note: Using minimal glibc from qemu-init/ instead of full glibc package
     
     # Session/Seat Management
     seatd
@@ -42,12 +44,5 @@ pkgs.buildEnv {
     
     # Wayland utilities for debugging
     wayland-utils
-  ];
-  
-  pathsToLink = [
-    "/bin"
-    "/lib"
-    "/share"
-    "/etc"
   ];
 }

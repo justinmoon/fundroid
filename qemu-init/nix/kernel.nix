@@ -1,20 +1,36 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs, lib }:
 
-# Custom NixOS Linux kernel for QEMU init testing  
-# Builds virtio-gpu and virtio-input as built-in (not modules)
-# This ensures /dev/dri/card0 appears at boot without module loading
+# Custom kernel with virtio-gpu and virtio-input support for QEMU testing
+# This enables:
+# - virtio-gpu for DRM (/dev/dri/card0)  
+# - virtio-input for keyboard/mouse (/dev/input/event*)
 
-pkgs.linuxPackages_latest.kernel.override {
-  structuredExtraConfig = with pkgs.lib.kernel; {
-    # Build virtio-gpu into the kernel (not as module)
+pkgs.linux_latest.override {
+  structuredExtraConfig = with lib.kernel; {
+    # DRM and virtio-gpu support (for graphics)
+    DRM = yes;
     DRM_VIRTIO_GPU = yes;
     
-    # Build virtio core and PCI into kernel (not as modules)
+    # virtio-input support (for keyboard/mouse)
+    VIRTIO_INPUT = yes;
+    HID_SUPPORT = yes;
+    INPUT_EVDEV = yes;
+    
+    # Basic virtio infrastructure
     VIRTIO = yes;
     VIRTIO_PCI = yes;
-    VIRTIO_INPUT = yes;
+    VIRTIO_MMIO = yes;
+    VIRTIO_BALLOON = yes;
+    VIRTIO_BLK = yes;
+    VIRTIO_NET = yes;
     
-    # Input event device support  
-    INPUT_EVDEV = yes;
+    # Console/framebuffer support
+    FRAMEBUFFER_CONSOLE = yes;
+    FB = yes;
+    
+    # TTY for serial console
+    TTY = yes;
+    SERIAL_8250 = yes;
+    SERIAL_8250_CONSOLE = yes;
   };
 }

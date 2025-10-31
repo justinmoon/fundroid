@@ -6,12 +6,6 @@ var shutdown_requested: bool = false;
 var child_pid: i32 = 0;
 var child_exit_status: u32 = 0;
 var child_exited: bool = false;
-var weston_pid: i32 = 0;
-var seatd_pid: i32 = 0;
-var weston_exited: bool = false;
-var weston_exit_status: u32 = 0;
-var weston_respawn_count: u32 = 0;
-const MAX_WESTON_RESPAWNS: u32 = 3;
 
 fn print(comptime fmt: []const u8, args: anytype) void {
     var buf: [1024]u8 = undefined;
@@ -66,10 +60,6 @@ fn handleSignal(sig: i32) callconv(.c) void {
                     child_exit_status = status;
                     child_exited = true;
                     child_pid = 0;
-                } else if (pid == weston_pid) {
-                    weston_exit_status = status;
-                    weston_exited = true;
-                    weston_pid = 0;
                 }
             }
         },
@@ -108,21 +98,17 @@ fn startSeatd() i32 {
 
     if (pid == 0) {
         // Child process - exec seatd
-        // Note: Not all seatd versions support -n flag, run without it
         const argv = [_:null]?[*:0]const u8{ 
             "/usr/bin/seatd",
+            "-n",  // Non-forking mode (stay in foreground)
             null 
         };
         const envp = [_:null]?[*:0]const u8{
-            "LD_LIBRARY_PATH=/usr/lib:/lib:/lib64",
             "SEATD_VTBOUND=1",  // Tell seatd we're bound to a VT
-            "PATH=/usr/bin:/bin",
             null
         };
-        const result = linux.execve("/usr/bin/seatd", &argv, &envp);
-        // If we get here, exec failed
-        const err = linux.E.init(result);
-        print("[ERROR] Failed to exec seatd: error code {d}\n", .{@intFromEnum(err)});
+        _ = linux.execve("/usr/bin/seatd", &argv, &envp);
+        print("[ERROR] Failed to exec seatd\n", .{});
         posix.exit(1);
     }
 
@@ -130,76 +116,18 @@ fn startSeatd() i32 {
     print("[SEATD] Started with PID {d}\n", .{pid});
     
     // Give seatd a moment to initialize and create its socket
-    posix.nanosleep(0, 200_000_000); // 200ms
+    posix.nanosleep(0, 100_000_000); // 100ms
     
     return @intCast(pid);
-}
-
-fn startWeston() i32 {
-    print("[WESTON] Starting Weston compositor...\n", .{});
-    
-    const pid = linux.fork();
-    if (pid < 0) {
-        print("[ERROR] Failed to fork for Weston\n", .{});
-        return -1;
-    }
-
-    if (pid == 0) {
-        // Child process - exec weston
-        const argv = [_:null]?[*:0]const u8{ 
-            "/usr/bin/weston",
-            "--backend=drm-backend.so",
-            "--log=/var/log/weston.log",
-            null 
-        };
-        const envp = [_:null]?[*:0]const u8{
-            "XDG_RUNTIME_DIR=/run/wayland",
-            "LD_LIBRARY_PATH=/usr/lib:/usr/lib/weston:/lib:/lib64",
-            "WAYLAND_DISPLAY=wayland-0",
-            "WESTON_DISABLE_ABSTRACT_FD=1",
-            "PATH=/usr/bin:/bin",
-            null
-        };
-        const result = linux.execve("/usr/bin/weston", &argv, &envp);
-        // If we get here, exec failed
-        const err = linux.E.init(result);
-        print("[ERROR] Failed to exec weston: error code {d}\n", .{@intFromEnum(err)});
-        posix.exit(1);
-    }
-
-    // Parent process - weston started
-    print("[WESTON] Started with PID {d}\n", .{pid});
-    print("[WESTON] Logs at /var/log/weston.log\n", .{});
-    
-    return @intCast(pid);
-}
-
-fn streamWestonLog() void {
-    print("\n[WESTON LOG] Streaming /var/log/weston.log to console:\n", .{});
-    print("=" ** 60 ++ "\n", .{});
-    
-    const fd = posix.open("/var/log/weston.log", .{ .ACCMODE = .RDONLY }, 0) catch |err| {
-        print("[ERROR] Cannot open weston log: {s}\n", .{@errorName(err)});
-        return;
-    };
-    defer posix.close(fd);
-    
-    var buf: [4096]u8 = undefined;
-    while (true) {
-        const n = posix.read(fd, &buf) catch break;
-        if (n == 0) break;
-        _ = posix.write(1, buf[0..n]) catch break;
-    }
-    
-    print("=" ** 60 ++ "\n", .{});
 }
 
 fn loadKernelModules() void {
     const modules = [_][]const u8{
-        "/lib/modules/drm.ko",
-        "/lib/modules/ttm.ko",
-        "/lib/modules/drm_kms_helper.ko",
-        "/lib/modules/drm_shmem_helper.ko",
+        "/lib/modules/virtio.ko",
+        "/lib/modules/virtio_ring.ko",
+        "/lib/modules/virtio_pci_modern_dev.ko",
+        "/lib/modules/virtio_pci_legacy_dev.ko",
+        "/lib/modules/virtio_pci.ko",
         "/lib/modules/virtio_dma_buf.ko",
         "/lib/modules/virtio-gpu.ko",
     };
@@ -443,16 +371,16 @@ pub fn main() void {
         print("[PHASE 4 TEST] SUCCESS: /etc/weston.ini exists!\n", .{});
     }
     
-    // [PHASE 6 TEST] Verify Weston startup script is accessible
-    print("\n[PHASE 6 TEST] Verifying Weston startup script...\n", .{});
-    const start_weston_test = posix.open("/usr/bin/start-weston", .{ .ACCMODE = .RDONLY }, 0) catch |err| blk: {
-        print("[PHASE 6 TEST] FAILED: /usr/bin/start-weston not found: {s}\n", .{@errorName(err)});
-        break :blk null;
-    };
-    if (start_weston_test) |fd| {
-        posix.close(fd);
-        print("[PHASE 6 TEST] SUCCESS: /usr/bin/start-weston exists!\n", .{});
-    }
+    // [PHASE 5] Start seatd (seat management daemon)
+    // This must be started BEFORE Weston, as it manages device permissions
+    // SKIPPED for compositor-rs testing - it accesses /dev/dri/card0 directly
+    // print("\n[PHASE 5] Starting seatd for device access management...\n", .{});
+    // const seatd_pid = startSeatd();
+    // if (seatd_pid > 0) {
+    //     print("[PHASE 5] seatd is running, Weston will be able to access devices\n", .{});
+    // } else {
+    //     print("[PHASE 5] WARNING: seatd failed to start, Weston may not work\n", .{});
+    // }
     
     // Check if gfx mode requested
     if (gfx_mode) |mode| {
@@ -472,23 +400,71 @@ pub fn main() void {
                 _ = linux.waitpid(@intCast(pid), &status, 0);
                 print("[GFX] drm_rect exited\n", .{});
             }
-        } else if (std.mem.eql(u8, mode, "weston")) {
-            print("\n[GFX] Starting Weston compositor stack...\n", .{});
+        } else if (std.mem.eql(u8, mode, "compositor-rs")) {
+            print("\n[GFX] Launching compositor-rs + test-client...\n", .{});
             
-            // Create /var/log directory for weston logs
-            createDirectory("/var");
-            createDirectory("/var/log");
-            
-            // SKIP seatd due to stack smashing issue (glibc incompatibility)
-            // Weston can run as root without seatd for graphics-only testing
-            print("\n[PHASE 5] Skipping seatd (stack smashing issue), running Weston as root...\n", .{});
-            
-            // Start Weston compositor directly
-            weston_pid = startWeston();
-            if (weston_pid <= 0) {
-                print("[ERROR] Failed to start Weston\n", .{});
-            } else {
-                print("[WESTON] Running as root (no seatd seat management)\n", .{});
+            // Launch compositor in background
+            const compositor_pid = linux.fork();
+            if (compositor_pid == 0) {
+                const argv = [_:null]?[*:0]const u8{ "/compositor-rs", null };
+                const envp = [_:null]?[*:0]const u8{
+                    "XDG_RUNTIME_DIR=/run/wayland",
+                    null
+                };
+                _ = linux.execve("/compositor-rs", &argv, &envp);
+                print("[ERROR] Failed to exec compositor-rs\n", .{});
+                posix.exit(1);
+            } else if (compositor_pid > 0) {
+                print("[GFX] compositor-rs started with PID {d} (background)\n", .{compositor_pid});
+                
+                // Wait 2 seconds for compositor to initialize
+                print("[GFX] Waiting 2 seconds for compositor to initialize...\n", .{});
+                posix.nanosleep(2, 0);
+                
+                // Launch test client in foreground
+                print("[GFX] Launching test-client...\n", .{});
+                const client_pid = linux.fork();
+                if (client_pid == 0) {
+                    const argv = [_:null]?[*:0]const u8{ "/test-client", null };
+                    const envp = [_:null]?[*:0]const u8{
+                        "WAYLAND_DISPLAY=wayland-0",
+                        "XDG_RUNTIME_DIR=/run/wayland",
+                        null
+                    };
+                    _ = linux.execve("/test-client", &argv, &envp);
+                    print("[ERROR] Failed to exec test-client\n", .{});
+                    posix.exit(1);
+                } else if (client_pid > 0) {
+                    print("[GFX] test-client started with PID {d}\n", .{client_pid});
+                    
+                    // Wait for test-client to complete
+                    var client_status: u32 = 0;
+                    _ = linux.waitpid(@intCast(client_pid), &client_status, 0);
+                    
+                    const exit_code = if ((client_status & 0x7f) == 0)
+                        (client_status >> 8) & 0xff
+                    else
+                        client_status & 0x7f;
+                    
+                    print("[GFX] test-client exited with code {d}\n", .{exit_code});
+                    
+                    // Terminate compositor
+                    print("[GFX] Terminating compositor-rs...\n", .{});
+                    _ = linux.kill(@intCast(compositor_pid), linux.SIG.TERM);
+                    posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds
+                    
+                    var compositor_status: u32 = 0;
+                    _ = linux.waitpid(@intCast(compositor_pid), &compositor_status, 0);
+                    print("[GFX] compositor-rs terminated\n", .{});
+                    
+                    // Exit with test client's exit code
+                    if (exit_code == 0) {
+                        print("\n[SUCCESS] Test passed! Shutting down...\n", .{});
+                    } else {
+                        print("\n[FAILURE] Test failed with exit code {d}\n", .{exit_code});
+                    }
+                    posix.exit(@intCast(exit_code));
+                }
             }
         }
     }
@@ -522,35 +498,6 @@ pub fn main() void {
             }
         }
 
-        // Check for Weston exit and respawn if needed
-        if (weston_exited) {
-            const exit_code = if ((weston_exit_status & 0x7f) == 0)
-                (weston_exit_status >> 8) & 0xff
-            else
-                weston_exit_status & 0x7f;
-
-            print("\n[WESTON] Compositor exited with status {d}\n", .{exit_code});
-            
-            // Stream weston log to console for debugging
-            streamWestonLog();
-            
-            weston_exited = false;
-
-            if (weston_respawn_count < MAX_WESTON_RESPAWNS) {
-                weston_respawn_count += 1;
-                print("[WESTON] Waiting 2 seconds before respawn (count: {d}/{d})...\n", 
-                    .{weston_respawn_count, MAX_WESTON_RESPAWNS});
-                posix.nanosleep(2, 0);
-                print("[WESTON] Respawning compositor...\n", .{});
-                weston_pid = startWeston();
-                if (weston_pid <= 0) {
-                    print("[ERROR] Failed to respawn Weston\n", .{});
-                }
-            } else {
-                print("[WESTON] Reached respawn limit, compositor will not restart\n", .{});
-            }
-        }
-
         const timestamp = std.time.timestamp();
         print("[heartbeat] Unix timestamp: {d}\n", .{timestamp});
         posix.nanosleep(0, 500_000_000); // 0.5 seconds
@@ -558,49 +505,13 @@ pub fn main() void {
 
     print("\n[SHUTDOWN] Received SIGTERM, shutting down...\n", .{});
 
-    if (weston_pid > 0) {
-        print("[SHUTDOWN] Terminating Weston PID {d}...\n", .{weston_pid});
-        _ = linux.kill(weston_pid, linux.SIG.TERM);
-        posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds for graceful exit
-        // Check if still running
-        var status: u32 = 0;
-        const result = linux.waitpid(weston_pid, &status, linux.W.NOHANG);
-        if (result == 0) {
-            // Still running, force kill
-            print("[SHUTDOWN] Force killing Weston...\n", .{});
-            _ = linux.kill(weston_pid, linux.SIG.KILL);
-        }
-        weston_pid = 0;
-    }
-
-    if (seatd_pid > 0) {
-        print("[SHUTDOWN] Terminating seatd PID {d}...\n", .{seatd_pid});
-        _ = linux.kill(seatd_pid, linux.SIG.TERM);
-        posix.nanosleep(0, 300_000_000); // Wait 0.3 seconds for graceful exit
-        // Check if still running
-        var status: u32 = 0;
-        const result = linux.waitpid(seatd_pid, &status, linux.W.NOHANG);
-        if (result == 0) {
-            // Still running, force kill
-            print("[SHUTDOWN] Force killing seatd...\n", .{});
-            _ = linux.kill(seatd_pid, linux.SIG.KILL);
-        }
-        seatd_pid = 0;
-    }
-
     if (child_pid > 0) {
         print("[SHUTDOWN] Terminating child process PID {d}...\n", .{child_pid});
         _ = linux.kill(child_pid, linux.SIG.TERM);
         posix.nanosleep(0, 500_000_000); // Wait 0.5 seconds for graceful exit
-        // Check if still running
-        var status: u32 = 0;
-        const result = linux.waitpid(child_pid, &status, linux.W.NOHANG);
-        if (result == 0) {
-            // Still running, force kill
-            print("[SHUTDOWN] Force killing child...\n", .{});
+        if (child_pid > 0) {
             _ = linux.kill(child_pid, linux.SIG.KILL);
         }
-        child_pid = 0;
     }
 
     print("[SHUTDOWN] Unmounting /dev...\n", .{});

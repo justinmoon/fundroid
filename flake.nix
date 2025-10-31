@@ -40,7 +40,7 @@
         };
 
         rust = pkgs.rust-bin.stable.latest.default.override {
-          targets = [ "x86_64-linux-android" "aarch64-linux-android" ];
+          targets = [ "x86_64-linux-android" "aarch64-linux-android" "x86_64-unknown-linux-musl" ];
           extensions = [ "rust-src" "clippy" "rustfmt" ];
         };
 
@@ -68,6 +68,8 @@
         packages = if pkgs.stdenv.isLinux then {
           inherit (cuttlefish.packages.${system}) cfctl;
           weston-rootfs = pkgs.callPackage ./qemu-init/nix/weston-rootfs.nix {};
+          
+          # Custom kernel with virtio-gpu and virtio-input support
           qemu-kernel = pkgs.callPackage ./qemu-init/nix/kernel.nix {};
         } else {};
         
@@ -90,7 +92,6 @@
             # QEMU init learning environment
             pkgs-unstable.zig  # Use latest Zig from unstable
             pkgs.qemu
-            pkgs.patchelf  # For fixing dynamic linker paths in initramfs
             # Note: kernel can't be built on macOS, we download pre-built instead
             # Note: libdrm for drm_rect.zig only available on Linux
           ];

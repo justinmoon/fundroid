@@ -67,10 +67,13 @@ if [ "$GUI_MODE" = true ]; then
     else
         QEMU_CMD="$QEMU_CMD -display sdl,gl=on"
     fi
+    QEMU_CMD="$QEMU_CMD -cpu max"  # Use all available CPU features
     QEMU_CMD="$QEMU_CMD -device virtio-gpu-pci"
+    QEMU_CMD="$QEMU_CMD -device virtio-keyboard-pci"
+    QEMU_CMD="$QEMU_CMD -device virtio-mouse-pci"
     QEMU_CMD="$QEMU_CMD -vga none"
-    QEMU_CMD="$QEMU_CMD -serial stdio"
-    QEMU_CMD="$QEMU_CMD -m 2048M"  # Increased to 2GB for large initramfs
+    QEMU_CMD="$QEMU_CMD -serial file:/tmp/qemu-serial.log"  # Log to file, not stdio
+    QEMU_CMD="$QEMU_CMD -m 2048M"
     
     echo "Running: $QEMU_CMD"
     eval "$QEMU_CMD"

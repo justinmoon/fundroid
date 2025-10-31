@@ -44,3 +44,9 @@ heartbeat-init/init_boot.img
 heartbeat-init/.build/
 init_boot.img
 init_boot.stock.img
+qemu-init/usr/
+qemu-init/.BUILDINFO
+qemu-init/.MTREE
+qemu-init/.PKGINFO
+qemu-init/screenshot*.png
+qemu-init/screenshot*.sh

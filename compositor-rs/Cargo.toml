@@ -1,0 +1,28 @@
+[package]
+name = "compositor-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Phase 2: DRM device initialization
+drm = "0.12"
+
+# Phase 4: Wayland server
+wayland-server = "0.31"
+wayland-backend = "0.3"
+
+# Phase 6+: Buffer rendering
+libc = "0.2"
+
+# Phase 7: Input event handling with evdev (pure Rust, no C deps)
+evdev = "0.12"
+
+# Test client
+wayland-client = "0.31"
+tempfile = "3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"

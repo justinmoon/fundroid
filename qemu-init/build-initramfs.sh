@@ -16,21 +16,13 @@ fi
 # Build weston-rootfs if not already built
 if [ ! -L "weston-rootfs" ]; then
     echo "Building weston-rootfs package..."
-    # Force x86_64-linux target since weston-rootfs is Linux-only
-    # Note: This requires either Linux host or remote builder configured
-    if nix build ..#packages.x86_64-linux.weston-rootfs --out-link weston-rootfs 2>/dev/null; then
-        echo "Successfully built weston-rootfs"
-    else
-        echo "WARNING: Failed to build weston-rootfs (requires Linux or remote builder)"
-        echo "         Weston compositor will not be available in this initramfs"
-        echo "         Other graphics modes (drm_rect) will still work"
-    fi
+    nix build ..#weston-rootfs --out-link weston-rootfs
 else
     echo "Using existing weston-rootfs"
 fi
 
 WORK_DIR=$(mktemp -d)
-trap "rm -rf '$WORK_DIR' 2>/dev/null || true" EXIT
+trap "rm -rf '$WORK_DIR'" EXIT
 
 cp init "$WORK_DIR/init"
 chmod +x "$WORK_DIR/init"
@@ -48,29 +40,50 @@ if [ -f "drm_rect" ]; then
     cp drm_rect "$WORK_DIR/drm_rect"
     chmod +x "$WORK_DIR/drm_rect"
     
-    # Include required libraries (musl or glibc)
-    mkdir -p "$WORK_DIR/lib64" "$WORK_DIR/lib"
-    
-    # Musl dynamic linker (for musl-built drm_rect)
-    if [ -f "ld-musl-x86_64.so.1" ]; then
-        cp ld-musl-x86_64.so.1 "$WORK_DIR/lib/"
-    fi
-    
-    # Glibc libraries (fallback for old glibc builds)
+    # Include required libraries for glibc
+    mkdir -p "$WORK_DIR/lib64" "$WORK_DIR/lib" "$WORK_DIR/usr/lib"
     if [ -f "ld-linux-x86-64.so.2" ]; then
         cp ld-linux-x86-64.so.2 "$WORK_DIR/lib64/"
     fi
     if [ -f "libc.so.6" ]; then
         cp libc.so.6 "$WORK_DIR/lib/"
+        # Also copy to /usr/lib for weston binaries
+        cp libc.so.6 "$WORK_DIR/usr/lib/"
     fi
     if [ -f "libpthread.so.0" ]; then
         cp libpthread.so.0 "$WORK_DIR/lib/"
+        cp libpthread.so.0 "$WORK_DIR/usr/lib/"
     fi
     if [ -f "libdrm.so.2" ]; then
         cp libdrm.so.2 "$WORK_DIR/lib/"
     fi
+    # Also copy libm for weston binaries
+    if [ -f "libm.so.6" ]; then
+        cp libm.so.6 "$WORK_DIR/usr/lib/"
+    fi
     
-    echo "Including drm_rect in initramfs (with musl/glibc libs)"
+    # Copy additional libraries for weston-terminal (full runtime closure)
+    if [ -d "weston-deps" ]; then
+        chmod -R +w "$WORK_DIR/usr/lib" 2>/dev/null || true
+        cp weston-deps/* "$WORK_DIR/usr/lib/" 2>/dev/null || true
+        echo "Including weston-terminal dependencies ($(ls weston-deps | wc -l) files)"
+    fi
+    
+    echo "Including drm_rect in initramfs (with glibc libs)"
+fi
+
+# Include compositor-rs if available (statically linked, no libs needed)
+if [ -f "compositor-rs" ]; then
+    cp compositor-rs "$WORK_DIR/compositor-rs"
+    chmod +x "$WORK_DIR/compositor-rs"
+    echo "Including compositor-rs in initramfs (statically linked)"
+fi
+
+# Include test-client if available (statically linked, no libs needed)
+if [ -f "test-client" ]; then
+    cp test-client "$WORK_DIR/test-client"
+    chmod +x "$WORK_DIR/test-client"
+    echo "Including test-client in initramfs (statically linked)"
 fi
 
 # Include kernel modules if available
@@ -97,6 +110,17 @@ if [ -L "weston-rootfs" ]; then
         echo "  - Copied libraries"
     fi
     
+    # Also copy dynamic linker to /usr/lib (weston binaries are patched to use this path)
+    if [ -f "$WORK_DIR/lib64/ld-linux-x86-64.so.2" ]; then
+        chmod -R +w "$WORK_DIR/usr/lib"  # Make writable (files from Nix store are read-only)
+        cp "$WORK_DIR/lib64/ld-linux-x86-64.so.2" "$WORK_DIR/usr/lib/"
+        echo "  - Copied dynamic linker to /usr/lib"
+    elif [ -f "ld-linux-x86-64.so.2" ]; then
+        chmod -R +w "$WORK_DIR/usr/lib"  # Make writable
+        cp ld-linux-x86-64.so.2 "$WORK_DIR/usr/lib/"
+        echo "  - Copied dynamic linker to /usr/lib"
+    fi
+    
     # Copy shared resources (fonts, icons, etc.)
     if [ -d "weston-rootfs/share" ]; then
         cp -rL weston-rootfs/share "$WORK_DIR/usr/"
@@ -110,59 +134,21 @@ if [ -L "weston-rootfs" ]; then
         echo "  - Copied configuration files"
     fi
     
-    # Fix dynamic linker paths for Nix-built binaries
-    # Nix binaries have interpreter paths like /nix/store/.../ld-linux-x86-64.so.2
-    # We need to patch them to use /lib64/ld-linux-x86-64.so.2
-    if command -v patchelf >/dev/null 2>&1; then
-        echo "  - Patching ELF binaries to use /lib64/ld-linux-x86-64.so.2"
-        mkdir -p "$WORK_DIR/lib64"
-        
-        # Find and copy a working dynamic linker
-        # First try from weston-rootfs, then from local drm_rect libs
-        INTERP=$(find weston-rootfs -name "ld-linux-x86-64.so.2" -type f 2>/dev/null | head -1)
-        if [ -z "$INTERP" ] && [ -f "ld-linux-x86-64.so.2" ]; then
-            INTERP="ld-linux-x86-64.so.2"
-        fi
-        if [ -n "$INTERP" ]; then
-            cp "$INTERP" "$WORK_DIR/lib64/ld-linux-x86-64.so.2"
-            echo "  - Copied dynamic linker to /lib64"
-        else
-            echo "  - WARNING: Could not find ld-linux-x86-64.so.2"
-        fi
-        
-        # Patch all binaries in /usr/bin
-        if [ -d "$WORK_DIR/usr/bin" ]; then
-            PATCHED=0
-            for bin in "$WORK_DIR/usr/bin"/*; do
-                if [ -f "$bin" ] && [ -x "$bin" ]; then
-                    if patchelf --print-interpreter "$bin" >/dev/null 2>&1; then
-                        # Make writable in case it's readonly from Nix store
-                        chmod +w "$bin"
-                        if patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 "$bin" 2>/dev/null; then
-                            PATCHED=$((PATCHED + 1))
-                        fi
-                    fi
-                fi
-            done
-            echo "  - Successfully patched $PATCHED binaries"
-        fi
-    else
-        echo "  - WARNING: patchelf not found, binaries may not work"
-    fi
-    
     echo "Weston rootfs included successfully"
     
-    # Copy all libraries from local-libs directory if available
-    if [ -d "local-libs" ]; then
-        mkdir -p "$WORK_DIR/usr/lib" "$WORK_DIR/lib" "$WORK_DIR/lib64"
-        chmod -R +w "$WORK_DIR/usr/lib" "$WORK_DIR/lib" "$WORK_DIR/lib64" 2>/dev/null || true
-        # Copy to /usr/lib (where Weston looks first)
-        cp local-libs/*.so* "$WORK_DIR/usr/lib/" 2>/dev/null || true
-        # Also copy to /lib and /lib64 for consistency
-        cp local-libs/libc.so* local-libs/libm.so* local-libs/libpthread.so* "$WORK_DIR/lib/" 2>/dev/null || true
-        cp local-libs/ld-linux-x86-64.so* "$WORK_DIR/lib64/" 2>/dev/null || true
-        echo "  - Copied $(ls local-libs/*.so* 2>/dev/null | wc -l) libraries from local-libs"
-    fi
+    # Patch weston binaries to use /usr/lib/ld-linux-x86-64.so.2 and /usr/lib for libraries
+    echo "Patching weston binaries for initramfs compatibility..."
+    for binary in "$WORK_DIR"/usr/bin/weston*; do
+        if [ -f "$binary" ] && file "$binary" | grep -q "ELF.*dynamically linked"; then
+            chmod +w "$binary"  # Make writable for patchelf
+            nix-shell -p patchelf --run "patchelf --set-interpreter /usr/lib/ld-linux-x86-64.so.2 --set-rpath /usr/lib '$binary'" 2>/dev/null && {
+                echo "  ✓ Patched $(basename "$binary")"
+            } || {
+                echo "  Warning: Failed to patch $(basename "$binary")"
+            }
+        fi
+    done
+    echo "  - Patching complete"
 fi
 
 # Include custom weston.ini configuration
@@ -170,15 +156,6 @@ if [ -f "rootfs/etc/weston.ini" ]; then
     mkdir -p "$WORK_DIR/etc"
     cp rootfs/etc/weston.ini "$WORK_DIR/etc/weston.ini"
     echo "Including custom weston.ini configuration"
-fi
-
-# Include start-weston script
-if [ -f "rootfs/usr/bin/start-weston" ]; then
-    mkdir -p "$WORK_DIR/usr/bin"
-    chmod -R +w "$WORK_DIR/usr/bin" 2>/dev/null || true  # Make writable if from Nix store
-    cp rootfs/usr/bin/start-weston "$WORK_DIR/usr/bin/start-weston"
-    chmod +x "$WORK_DIR/usr/bin/start-weston"
-    echo "Including start-weston script"
 fi
 
 cd "$WORK_DIR"

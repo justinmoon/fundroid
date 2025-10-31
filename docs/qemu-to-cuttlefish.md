@@ -1,5 +1,7 @@
 **Cuttlefish Phase-1 Plan**
 
+We previously made some progress getting a PID 1 init running in cuttlefish, but got stuck and tried to simplify by doing it in qemu instead. `compositor-rs` succeeded here. `./run.sh --gui gfx=compositor-rs` from `qemu-init/`  directory succeeded with this. Now we want to get a simliar PID 1 that can boot and run a wayland compositor running in Cuttlefish in these steps:
+
 - **Baseline + Stock Forensics**
   - Run `just heartbeat` to make sure the existing PID1 override still boots; archive the console and kernel logs for baseline comparison.
   - Unpack `/var/lib/cuttlefish/images/init_boot.img` on Hetzner, documenting header version, compression, ramdisk layout, bundled modules, and the stock `/init`.

@@ -1542,6 +1542,14 @@ impl InstanceManager {
                                 "verify_boot: console log contained boot marker for {}",
                                 id
                             );
+                            if let Err(err) = self.save_logcat_snapshot(id) {
+                                warn!(
+                                    target: "cfctl",
+                                    "verify_boot: failed to save logcat snapshot for {}: {:#}",
+                                    id,
+                                    err
+                                );
+                            }
                             return Ok(BootVerificationResult {
                                 adb_ready: true,
                                 boot_marker_observed: true,
@@ -1554,6 +1562,14 @@ impl InstanceManager {
                                 "verify_boot: run log contained boot marker for {}",
                                 id
                             );
+                            if let Err(err) = self.save_logcat_snapshot(id) {
+                                warn!(
+                                    target: "cfctl",
+                                    "verify_boot: failed to save logcat snapshot for {}: {:#}",
+                                    id,
+                                    err
+                                );
+                            }
                             return Ok(BootVerificationResult {
                                 adb_ready: true,
                                 boot_marker_observed: true,
@@ -1572,6 +1588,14 @@ impl InstanceManager {
                 };
 
             if matches!(value.as_str(), "1" | "true" | "TRUE") {
+                if let Err(err) = self.save_logcat_snapshot(id) {
+                    warn!(
+                        target: "cfctl",
+                        "verify_boot: failed to save logcat snapshot for {}: {:#}",
+                        id,
+                        err
+                    );
+                }
                 return Ok(BootVerificationResult {
                     adb_ready: true,
                     boot_marker_observed: true,
@@ -1585,6 +1609,14 @@ impl InstanceManager {
                     "verify_boot: console log contained boot marker for {}",
                     id
                 );
+                if let Err(err) = self.save_logcat_snapshot(id) {
+                    warn!(
+                        target: "cfctl",
+                        "verify_boot: failed to save logcat snapshot for {}: {:#}",
+                        id,
+                        err
+                    );
+                }
                 return Ok(BootVerificationResult {
                     adb_ready: true,
                     boot_marker_observed: true,
@@ -1598,6 +1630,14 @@ impl InstanceManager {
                     "verify_boot: run log contained boot marker for {}",
                     id
                 );
+                if let Err(err) = self.save_logcat_snapshot(id) {
+                    warn!(
+                        target: "cfctl",
+                        "verify_boot: failed to save logcat snapshot for {}: {:#}",
+                        id,
+                        err
+                    );
+                }
                 return Ok(BootVerificationResult {
                     adb_ready: true,
                     boot_marker_observed: true,
@@ -2755,10 +2795,41 @@ impl InstanceManager {
         let snapshot_path = paths.root.join("console_snapshot.log");
         fs::copy(&console_log, &snapshot_path)
             .with_context(|| format!("copying console log {} to {}", console_log.display(), snapshot_path.display()))?;
-        
+
         info!(
             target: "cfctl",
             "snapshot_console_on_failure: saved console snapshot for instance {} to {}",
+            id,
+            snapshot_path.display()
+        );
+        Ok(())
+    }
+
+    fn save_logcat_snapshot(&self, id: InstanceId) -> Result<()> {
+        let paths = self.paths(id);
+        let logcat_path = self.host_instance_dir(id)
+            .join("instances")
+            .join(format!("cvd-{}", id))
+            .join("logs")
+            .join("logcat");
+
+        if !logcat_path.exists() {
+            debug!(
+                target: "cfctl",
+                "save_logcat_snapshot: logcat {} does not exist for instance {}",
+                logcat_path.display(),
+                id
+            );
+            return Ok(());
+        }
+
+        let snapshot_path = paths.root.join("console_snapshot.log");
+        fs::copy(&logcat_path, &snapshot_path)
+            .with_context(|| format!("copying logcat {} to {}", logcat_path.display(), snapshot_path.display()))?;
+
+        info!(
+            target: "cfctl",
+            "save_logcat_snapshot: saved logcat snapshot for instance {} to {}",
             id,
             snapshot_path.display()
         );

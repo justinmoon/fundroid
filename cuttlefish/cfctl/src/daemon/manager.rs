@@ -2081,6 +2081,7 @@ impl InstanceManager {
                 })
                 .collect::<Vec<_>>()
                 .join(",");
+            cmd.arg("--inh-caps").arg(&caps_arg);
             cmd.arg("--ambient-caps").arg(&caps_arg);
         }
 

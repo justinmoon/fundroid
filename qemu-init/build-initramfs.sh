@@ -3,13 +3,35 @@
 
 set -euo pipefail
 
+copy_lib() {
+    local dest_dir=$1
+    local name=$2
+    shift 2
+    for candidate in "$@"; do
+        if [ -n "${candidate:-}" ] && [ -f "$candidate" ]; then
+            cp "$candidate" "$dest_dir/"
+            return 0
+        fi
+    done
+    echo "Warning: missing $name (provide it manually or ensure nix is available)" >&2
+    return 1
+}
+
+if command -v nix >/dev/null 2>&1; then
+    NIX_GLIBC=$(nix path-info nixpkgs#glibc 2>/dev/null || true)
+    NIX_LIBDRM=$(nix path-info nixpkgs#libdrm 2>/dev/null || true)
+else
+    NIX_GLIBC=""
+    NIX_LIBDRM=""
+fi
+
 if [ ! -f "init" ]; then
     echo "Error: init not found. Run ./build.sh first"
     exit 1
 fi
 
 if [ ! -f "test_child" ]; then
-    echo "Error: test_child not found. Build it first"
+    echo "Error: test_child not found. Run ./build.sh first"
     exit 1
 fi
 
@@ -39,37 +61,36 @@ fi
 if [ -f "drm_rect" ]; then
     cp drm_rect "$WORK_DIR/drm_rect"
     chmod +x "$WORK_DIR/drm_rect"
+    echo "Including drm_rect in initramfs (with glibc libs)"
     
-    # Include required libraries for glibc
     mkdir -p "$WORK_DIR/lib64" "$WORK_DIR/lib" "$WORK_DIR/usr/lib"
-    if [ -f "ld-linux-x86-64.so.2" ]; then
-        cp ld-linux-x86-64.so.2 "$WORK_DIR/lib64/"
-    fi
-    if [ -f "libc.so.6" ]; then
-        cp libc.so.6 "$WORK_DIR/lib/"
-        # Also copy to /usr/lib for weston binaries
-        cp libc.so.6 "$WORK_DIR/usr/lib/"
-    fi
-    if [ -f "libpthread.so.0" ]; then
-        cp libpthread.so.0 "$WORK_DIR/lib/"
-        cp libpthread.so.0 "$WORK_DIR/usr/lib/"
-    fi
-    if [ -f "libdrm.so.2" ]; then
-        cp libdrm.so.2 "$WORK_DIR/lib/"
-    fi
-    # Also copy libm for weston binaries
-    if [ -f "libm.so.6" ]; then
-        cp libm.so.6 "$WORK_DIR/usr/lib/"
-    fi
-    
-    # Copy additional libraries for weston-terminal (full runtime closure)
+    copy_lib "$WORK_DIR/lib64" "ld-linux-x86-64.so.2" \
+        "$PWD/ld-linux-x86-64.so.2" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/ld-linux-x86-64.so.2}"
+    copy_lib "$WORK_DIR/lib" "libc.so.6" \
+        "$PWD/libc.so.6" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/libc.so.6}"
+    copy_lib "$WORK_DIR/usr/lib" "libc.so.6" \
+        "$PWD/libc.so.6" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/libc.so.6}"
+    copy_lib "$WORK_DIR/lib" "libpthread.so.0" \
+        "$PWD/libpthread.so.0" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/libpthread.so.0}"
+    copy_lib "$WORK_DIR/usr/lib" "libpthread.so.0" \
+        "$PWD/libpthread.so.0" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/libpthread.so.0}"
+    copy_lib "$WORK_DIR/lib" "libdrm.so.2" \
+        "$PWD/libdrm.so.2" \
+        "${NIX_LIBDRM:+$NIX_LIBDRM/lib/libdrm.so.2}"
+    copy_lib "$WORK_DIR/usr/lib" "libm.so.6" \
+        "$PWD/libm.so.6" \
+        "${NIX_GLIBC:+$NIX_GLIBC/lib/libm.so.6}"
+
     if [ -d "weston-deps" ]; then
         chmod -R +w "$WORK_DIR/usr/lib" 2>/dev/null || true
         cp weston-deps/* "$WORK_DIR/usr/lib/" 2>/dev/null || true
         echo "Including weston-terminal dependencies ($(ls weston-deps | wc -l) files)"
     fi
-    
-    echo "Including drm_rect in initramfs (with glibc libs)"
 fi
 
 # Include compositor-rs if available (statically linked, no libs needed)
@@ -98,64 +119,42 @@ if [ -L "weston-rootfs" ]; then
     echo "Including weston-rootfs in initramfs..."
     mkdir -p "$WORK_DIR/usr"
     
-    # Copy binaries (follow symlinks with -L to get actual files)
     if [ -d "weston-rootfs/bin" ]; then
         cp -rL weston-rootfs/bin "$WORK_DIR/usr/"
         echo "  - Copied binaries"
     fi
-    
-    # Copy libraries (follow symlinks with -L to get actual files)
     if [ -d "weston-rootfs/lib" ]; then
         cp -rL weston-rootfs/lib "$WORK_DIR/usr/"
         echo "  - Copied libraries"
     fi
-    
-    # Also copy dynamic linker to /usr/lib (weston binaries are patched to use this path)
     if [ -f "$WORK_DIR/lib64/ld-linux-x86-64.so.2" ]; then
-        chmod -R +w "$WORK_DIR/usr/lib"  # Make writable (files from Nix store are read-only)
+        chmod -R +w "$WORK_DIR/usr/lib"
         cp "$WORK_DIR/lib64/ld-linux-x86-64.so.2" "$WORK_DIR/usr/lib/"
         echo "  - Copied dynamic linker to /usr/lib"
-    elif [ -f "ld-linux-x86-64.so.2" ]; then
-        chmod -R +w "$WORK_DIR/usr/lib"  # Make writable
-        cp ld-linux-x86-64.so.2 "$WORK_DIR/usr/lib/"
-        echo "  - Copied dynamic linker to /usr/lib"
     fi
-    
-    # Copy shared resources (fonts, icons, etc.)
     if [ -d "weston-rootfs/share" ]; then
         cp -rL weston-rootfs/share "$WORK_DIR/usr/"
         echo "  - Copied shared resources"
     fi
-    
-    # Copy etc configs
     if [ -d "weston-rootfs/etc" ]; then
         mkdir -p "$WORK_DIR/etc"
         cp -rL weston-rootfs/etc/* "$WORK_DIR/etc/" 2>/dev/null || true
         echo "  - Copied configuration files"
     fi
-    
-    echo "Weston rootfs included successfully"
-    
-    # Patch weston binaries to use /usr/lib/ld-linux-x86-64.so.2 and /usr/lib for libraries
+
     echo "Patching weston binaries for initramfs compatibility..."
     for binary in "$WORK_DIR"/usr/bin/weston*; do
         if [ -f "$binary" ] && file "$binary" | grep -q "ELF.*dynamically linked"; then
-            chmod +w "$binary"  # Make writable for patchelf
-            nix-shell -p patchelf --run "patchelf --set-interpreter /usr/lib/ld-linux-x86-64.so.2 --set-rpath /usr/lib '$binary'" 2>/dev/null && {
-                echo "  ✓ Patched $(basename "$binary")"
-            } || {
-                echo "  Warning: Failed to patch $(basename "$binary")"
-            }
+            chmod +w "$binary"
+            nix-shell -p patchelf --run "patchelf --set-interpreter /usr/lib/ld-linux-x86-64.so.2 --set-rpath /usr/lib '$binary'" 2>/dev/null || echo "  Warning: Failed to patch $(basename "$binary")"
         fi
     done
-    echo "  - Patching complete"
 fi
 
-# Include custom weston.ini configuration
-if [ -f "rootfs/etc/weston.ini" ]; then
-    mkdir -p "$WORK_DIR/etc"
-    cp rootfs/etc/weston.ini "$WORK_DIR/etc/weston.ini"
-    echo "Including custom weston.ini configuration"
+# Include custom overlay files
+if [ -d "rootfs" ]; then
+    rsync -a --exclude '.DS_Store' rootfs/ "$WORK_DIR/"
+    echo "Including rootfs overlay (qemu-init/rootfs)"
 fi
 
 cd "$WORK_DIR"

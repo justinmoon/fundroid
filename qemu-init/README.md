@@ -110,12 +110,29 @@ This is a **real Linux boot**. The same kernel mechanisms that boot Android, Ubu
 
 ## Files
 
-- **`init.zig`** - The init implementation (heavily commented)
-- **`build.sh`** - Compiles Zig → static Linux binary
-- **`build-initramfs.sh`** - Creates cpio.gz archive with init
-- **`run-qemu.sh`** - Launches QEMU with kernel + initramfs
+- **`init.zig`** – the PID 1 implementation (heavily commented).
+- **`test_child.zig`** – helper program PID 1 supervises during tests.
+- **`test_input.zig`** – tiny `/dev/input` explorer used by `test-phase7.sh`.
+- **`build.sh`** – compiles all Zig helpers (init/test_child/test-input) into the repo root.
+- **`build-initramfs.sh`** – assembles `initramfs.cpio.gz`, pulling optional extras (drm_rect, compositor-rs, libs) if present.
+- **`run.sh`** – launches QEMU with kernel + initramfs and validates the output.
+- **`rootfs/`** – overlay copied into the initramfs (e.g., `/etc/profile`, `/usr/bin/start-weston`).
+- **`nix/`** – helper Nix expressions for kernels and the Weston rootfs.
+
+### Generated / Ignored Artifacts
+
+Everything below is ignored by git and recreated on demand:
+
+- `bzImage` – built via `./build-kernel-linux.sh` or `./download-kernel.sh`.
+- `weston-rootfs` – symlink produced by `nix build ..#weston-rootfs`.
+- `kernel-modules/` – optional `.ko` blobs copied into the initramfs.
+- `drm_rect`, `compositor-rs`, `test-client` – optional demos you can copy in before running `build-initramfs.sh`.
+- glibc/libdrm shared objects – fetched automatically from Nix when `drm_rect` is present (or copy them manually if you build outside of Nix).
+
+If you rebuild any of the optional binaries, drop them beside `init` before running `./build-initramfs.sh`; they will be detected automatically.
 
 ## What to Try
+
 
 ### 1. Understand What's Happening
 - Read through `init.zig` - see how simple PID 1 can be

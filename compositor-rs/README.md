@@ -1,6 +1,6 @@
 # compositor-rs
 
-A minimal Wayland compositor written in Rust, following the plan in `docs/rust-wayland-plan.md`.
+A minimal Wayland compositor written in Rust (progress snapshots now live in `docs/work-log.md`).
 
 ## Phase 1: Project Setup ✅
 

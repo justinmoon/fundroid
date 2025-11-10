@@ -1,139 +1,24 @@
-# boom - DRM Display Demo
+# fundroid
 
-A minimal repository demonstrating low-level DRM (Direct Rendering Manager) screen drawing on Android. This project focuses on the core functionality of drawing to the display using DRM, with a clean and simple codebase.
+Android PID1 experiments without the Android framework. The repo hosts our custom init binaries, the `drm_rect`/`compositor-rs` DRM demos, and the `cfctl` tooling that boots Cuttlefish on Hetzner.
 
-## Quick Start
+## Status Snapshot
+- `heartbeat-init/` – tiny C PID1s used for `init_boot.img` overrides; `just heartbeat` runs the remote smoke test via cfctl.
+- `qemu-init/` – clean-room initramfs + kernel modules for fast iteration; every graphics binary comes from here first.
+- `compositor-rs/` – static DRM/Wayland compositor plus test client destined for Cuttlefish once PID1 is stable.
+- `cuttlefish/` – flake, modules, and the `cfctl` CLI that manages Hetzner instances.
+- `docs/plans/` – active roadmaps for each parallel track (Cuttlefish PID1 logging, ramdisk packaging, Pixel 4a bring-up).
 
-Enter the Nix development shell:
-```bash
-nix develop
-```
+## Daily Commands
+- `nix develop` – shared shell with cross-compilers and Android platform tools.
+- `just heartbeat` – rebuilds the latest PID1, repacks `init_boot`, and boots a Hetzner instance while capturing logs.
+- `just run-drm-demo` – pushes the `drm_rect` binary to a connected device after stopping SurfaceFlinger.
+- `just emu-create|emu-boot|emu-root|emu-stop` – manages the local AVD used when we need a stock Android userspace.
 
-Create and boot the emulator:
-```bash
-just emu-create
-just emu-boot
-just emu-root  # Enables root access, disables dm-verity, and remounts /system
-```
-
-Run the DRM demo (fills screen with orange):
-```bash
-just run-drm-demo
-```
-
-
-
-## Components
-
-### Core Display Components
-
-- **`drm_rect`** - DRM-based screen drawing implementation
-  - Uses the `drm` crate for KMS (Kernel Mode Setting)
-  - Fills the entire display with a solid RGB color
-  - Properly handles DRM connectors, encoders, and CRTCs
-  - Clean, well-tested implementation
-
-## Architecture
-
-- **Apple Silicon**: Use arm64-v8a system images, builds for aarch64-linux-android
-- **Intel**: Use x86_64 system images, builds for x86_64-linux-android
-
-Auto-detection is built into all demo commands.
-
-## Available Commands
-
-Run `just` to see all available commands:
-
-- `just build-drm-x86` / `just build-drm-arm64` - Build DRM demo
-- `just run-drm-demo` - Run DRM demo on connected device
-- `just emu-create` / `just emu-boot` / `just emu-root` / `just emu-stop` - Emulator management
-- `just ci` - Run CI pipeline
-- `just heartbeat` - Run heartbeat PID1 test on remote Cuttlefish host (captures logs automatically)
-
-## CI/CD
-
-The project includes a robust CI pipeline that:
-- Builds the DRM component for both architectures (x86_64 and aarch64)
-- Runs formatting and linting checks
-- Executes Cuttlefish boot tests (when cfctl is available)
-- Validates that the core DRM functionality works
-
-## Heartbeat PID1 Test
-
-The heartbeat test validates that our custom PID1 init can boot on a Cuttlefish instance and emit heartbeat markers to the console. To run the test:
-
-```bash
-just heartbeat
-```
-
-This command:
-- Builds the heartbeat_init binary
-- Repacks the init_boot.img with our custom PID1
-- Deploys and boots a Cuttlefish instance on the remote host
-- Captures console output and verifies boot completion
-- Automatically saves logs to `logs/heartbeat-<timestamp>.log`
-
-Environment variables:
-- `CUTTLEFISH_REMOTE_HOST` - Remote host to run the test on (default: hetzner)
-- `REMOTE_CFCTL` - Path to cfctl binary on remote host (default: cfctl)
-
-## Kernel Requirements
-
-For DRM functionality, the emulator kernel needs:
-- DRM/KMS support
-- `/dev/dri/card0` device access
-
-With the emulator running, verify DRM availability:
-```bash
-ls -la /dev/dri/
-```
-
-## Development Notes
-
-### Emulator Bootstrap
-- Always run `just emu-root` on a fresh or reset AVD before pushing binaries
-- This issues `adb disable-verity` followed by `adb remount`, which requires a reboot
-- If you wipe emulator data or recreate the device, `adb disable-verity` resets
-
-### Display Management
-The demo scripts properly handle Android's display system:
-1. Stop SurfaceFlinger and hardware composer
-2. Run the demo (DRM or framebuffer)
-3. Restart display services
-4. Handle SELinux permissions
-
-### Error Handling
-All components include comprehensive error handling:
-- DRM device access failures
-- Display mode detection
-- Memory mapping errors
-- Permission issues
-
-## Testing
-
-Run the full test suite:
-```bash
-just ci
-```
-
-Individual component testing:
-```bash
-cargo test --manifest-path rust/drm_rect/Cargo.toml
-```
-
-## Project Structure
-
-```
-├── rust/
-│   └── drm_rect/          # DRM implementation
-├── scripts/
-│   ├── ci.sh              # CI pipeline
-│   ├── check_kernel_features.sh
-│   ├── cuttlefish_instance.sh
-│   └── download_emulator_system.sh
-├── plans/                 # Design documents
-├── docs/                  # Documentation
-└── justfile              # Build commands
-```
-
-This is a focused, minimal repository that demonstrates working DRM screen drawing without unnecessary complexity.
+## Documentation
+- `docs/cuttlefish.md` – Hetzner image layout, cfctl sanity checks, and how `just heartbeat` interacts with the host.
+- `docs/drm_rect.md` – step-by-step Pixel workflow (bootloader unlock, Magisk root, running the DRM demo).
+- `docs/plans/*.md` – bite-size task lists with acceptance tests for each major effort.
+- `docs/ideas.md` – condensed backlog of references, packaging tricks, and compositor follow-ups.
+- `docs/work-log.md` – history of what already works (QEMU init, compositor-rs, init_boot experiments).
+- `notes/CONSOLE-OUTPUT-SUMMARY.md` – investigation log for missing PID1 console output; read before debugging logging again.

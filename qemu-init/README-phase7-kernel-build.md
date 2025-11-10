@@ -181,7 +181,7 @@ cd qemu-init
 ./test-shutdown.sh
 ```
 
-## Acceptance Criteria (from docs/qemu-plan.md)
+## Acceptance Criteria (legacy qemu plan – see docs/work-log.md for snapshot history)
 
 - [ ] `./run.sh --gui gfx=weston` opens QEMU window showing Weston background and mouse cursor
 - [ ] Moving host mouse moves the Weston cursor

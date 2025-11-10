@@ -108,7 +108,14 @@ async fn main() -> Result<()> {
         guest_capabilities: args
             .guest_capabilities
             .into_iter()
-            .filter(|cap| !cap.trim().is_empty())
+            .filter_map(|cap| {
+                let cleaned = cap.trim().trim_matches('"').to_string();
+                if cleaned.is_empty() {
+                    None
+                } else {
+                    Some(cleaned)
+                }
+            })
             .collect(),
     };
 

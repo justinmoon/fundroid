@@ -99,19 +99,7 @@
             export JAVA_HOME="${pkgs.jdk17_headless}"
             export PATH="$JAVA_HOME/bin:$PATH"
 
-            local_sdk="$HOME/.android-sdk"
-            if [ ! -e "$local_sdk" ]; then
-              ln -s "${androidSdkStorePath}" "$local_sdk"
-            elif [ ! -L "$local_sdk" ]; then
-              echo "warning: $local_sdk exists and is not a symlink; skipping" >&2
-            else
-              current_target="$(readlink "$local_sdk" || true)"
-              if [ "$current_target" != "${androidSdkStorePath}" ]; then
-                ln -sf "${androidSdkStorePath}" "$local_sdk"
-              fi
-            fi
-
-            export ANDROID_SDK_ROOT="$local_sdk"
+            export ANDROID_SDK_ROOT="${androidSdkStorePath}"
             export ANDROID_HOME="$ANDROID_SDK_ROOT"
             export ANDROID_USER_HOME="$HOME/.android"
             export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"

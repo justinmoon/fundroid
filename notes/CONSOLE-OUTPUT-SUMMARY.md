@@ -607,3 +607,14 @@ We have:
 - ❌ **Completely invisible console output from non-chainloader init**
 
 The console visibility problem blocks everything. Once solved, the rest should work.
+
+## 2025-11-10 – Stock cfctl baseline (instance 19)
+
+- Hetzner command: `cfctl instance create-start --purpose ci --verify-boot --disable-webrtc`
+- Logs archived under `notes/cf-pid1-logging/step1-instance19/` (kernel, console, logcat, cfctl stdout)
+- Kernel log proves Android PID1 is visible:  
+  `[    1.893832] init: starting service 'ueventd'…` and `[    2.364401] init: starting service 'logd'…`
+- Logcat shows SurfaceFlinger emitting chatter during boot:  
+  `I SurfaceFlinger: SurfaceFlinger is starting` and  
+  `I SurfaceFlinger: SurfaceFlinger's main thread ready to run. Initializing graphics H/W...`
+- `cfctl logs --stdout` confirmed host-side proxy output; console buffer still stops around the shell prompt, so kernel/logcat are our authoritative sources for Android PID1 lines.

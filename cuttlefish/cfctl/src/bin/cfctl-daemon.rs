@@ -105,7 +105,11 @@ async fn main() -> Result<()> {
         disable_host_gpu: args.disable_host_gpu,
         guest_user: args.guest_user,
         guest_primary_group: args.guest_primary_group,
-        guest_capabilities: args.guest_capabilities,
+        guest_capabilities: args
+            .guest_capabilities
+            .into_iter()
+            .filter(|cap| !cap.trim().is_empty())
+            .collect(),
     };
 
     let daemon = CfctlDaemon::new(config);

@@ -501,7 +501,9 @@ fn kill_guest_processes(instance_name: &str, instance_dir: &Path, assembly_dir: 
         format!("cvd-{instance_name}"),
     ];
     for pattern in &patterns {
-        let _ = Command::new("pkill").args(["-9", "-f", pattern]).status();
+        let _ = Command::new("pkill")
+            .args(["-9", "-f", "--", pattern])
+            .status();
     }
     thread::sleep(Duration::from_millis(200));
 
@@ -514,7 +516,7 @@ fn kill_guest_processes(instance_name: &str, instance_dir: &Path, assembly_dir: 
 fn collect_guest_pids(patterns: &[String]) -> Vec<i32> {
     let mut pids = Vec::new();
     for pattern in patterns {
-        if let Ok(output) = Command::new("pgrep").args(["-f", pattern]).output() {
+        if let Ok(output) = Command::new("pgrep").args(["-f", "--", pattern]).output() {
             if output.status.success() {
                 for line in String::from_utf8_lossy(&output.stdout).lines() {
                     if let Ok(pid) = line.trim().parse::<i32>() {

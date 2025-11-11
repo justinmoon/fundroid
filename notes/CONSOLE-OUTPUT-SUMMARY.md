@@ -11,6 +11,12 @@ Implement a standalone PID1 that prints heartbeat messages every 5 seconds, visi
 
 ## Current Status
 
+### 2025-11-11 – Cfctl console capture
+- Instance **42** (created with `cfctl instance create-start --purpose ci --verify-boot --disable-webrtc`) leaves the expected chatter in `/var/lib/cuttlefish/instances/42/instances/cvd-42/console_log`.
+  - `init: starting service 'ueventd'...` appears at line 1147 with the rest of the service-start spam immediately following.
+  - SurfaceFlinger shows up in the same file at lines 3424–3543 (`init: starting service 'surfaceflinger'...` plus the servicemanager capability probes).
+- This works because cfctl now passes `--extra_kernel_cmdline=console=ttyS0,115200` to `launch_cvd` (`cuttlefish/cfctl/src/daemon/manager.rs:2115`), so the saved `console_log` artifact is sufficient for the plan’s acceptance test without touching kernel.log or logcat.
+
 ✅ **What Works:**
 - Static musl binary compiles successfully
 - init_boot.img repacks with our binary

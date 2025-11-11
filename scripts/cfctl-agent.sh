@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CFCTL_PROJECT_DIR="${REPO_ROOT}/cuttlefish/cfctl"
 source "${SCRIPT_DIR}/lib/cfctl-agent-common.sh"
 
 usage() {
@@ -100,12 +101,11 @@ if [[ -n "${CFCTL_CUTTLEFISH_SYSTEM_IMAGE_DIR:-}" ]]; then
     daemon_args+=("--cuttlefish-system-image-dir" "${CFCTL_CUTTLEFISH_SYSTEM_IMAGE_DIR}")
 fi
 
-runner=()
 if [[ -n "${binary}" ]]; then
-    runner=("${binary}")
+    cd "${REPO_ROOT}"
+    exec "${binary}" "${daemon_args[@]}" "${extra_args[@]}"
 else
-    runner=("cargo" "run" "-p" "cfctl" "--bin" "cfctl-daemon" "--")
+    cd "${CFCTL_PROJECT_DIR}"
+    exec cargo run -p cfctl --bin cfctl-daemon -- \
+        "${daemon_args[@]}" "${extra_args[@]}"
 fi
-
-cd "${REPO_ROOT}"
-exec "${runner[@]}" "${daemon_args[@]}" "${extra_args[@]}"

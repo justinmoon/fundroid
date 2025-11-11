@@ -2059,12 +2059,22 @@ impl InstanceManager {
         cmd.arg("--");
         
         // Add setpriv to set ambient capabilities if any are configured
-        if !self.config.guest_capabilities.is_empty() {
-            let caps_arg = self.config.guest_capabilities
-                .iter()
-                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
-                .collect::<Vec<_>>()
-                .join(",");
+        let caps: Vec<String> = self
+            .config
+            .guest_capabilities
+            .iter()
+            .map(|c| c.trim())
+            .filter(|c| !c.is_empty())
+            .map(|c| {
+                if c.starts_with('+') || c.starts_with('-') {
+                    c.to_string()
+                } else {
+                    format!("+{}", c)
+                }
+            })
+            .collect();
+        if !caps.is_empty() {
+            let caps_arg = caps.join(",");
             cmd.arg("setpriv")
                .arg("--ambient-caps")
                .arg(&caps_arg)
@@ -2102,6 +2112,8 @@ impl InstanceManager {
             .arg("--report_anonymous_usage_stats=n")
             .arg("--daemon=false")
             .arg("--console=true")
+            // Keep ttyS0 attached so the persisted console_log captures Android init chatter.
+            .arg("--extra_kernel_cmdline=console=ttyS0,115200")
             .arg("--verbosity=DEBUG")
             .arg("--resume=false");
 

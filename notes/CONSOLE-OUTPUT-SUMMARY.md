@@ -1,15 +1,21 @@
 # Console Output Investigation Summary
 
-**Date:** 2025-10-25  
-**Branch:** minimal-pid1  
+**Date:** 2025-11-11  
+**Branch:** cf-console  
 **Problem:** Cannot see ANY output from custom PID1, even after implementing recommended console setup  
-**Repository:** /Users/justin/code/boom/worktrees/minimal-pid1
+**Repository:** /home/justin/code/fundroid/worktrees/cf-console
 
 ## Goal
 
 Implement a standalone PID1 that prints heartbeat messages every 5 seconds, visible in console logs.
 
 ## Current Status
+
+### 2025-11-11 – Cfctl console capture
+- Instance **43** (created with `cfctl instance create-start --purpose ci --verify-boot --disable-webrtc`) has its artifacts checked into `notes/cf-pid1-logging/step1-instance43/` (console_log/kernel/logcat/cfctl dumps).
+  - `init: starting service 'ueventd'...` appears in `notes/cf-pid1-logging/step1-instance43/console_log.txt:1147`.
+  - SurfaceFlinger chatter is visible in the same file at lines 3424–3543 (search for `surfaceflinger`); the exact snippets are captured in git so they can be reviewed offline.
+- This works because cfctl now passes `--extra_kernel_cmdline=console=ttyS0,115200` to `launch_cvd` (`cuttlefish/cfctl/src/daemon/manager.rs:2115`), so the saved `console_log` plus the committed logcat/kernel dumps satisfy the Step 1 acceptance test without needing access to `/var/lib/cuttlefish`.
 
 ✅ **What Works:**
 - Static musl binary compiles successfully

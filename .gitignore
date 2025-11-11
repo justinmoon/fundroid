@@ -30,6 +30,9 @@ artifacts/
 # heartbeat test logs
 logs/
 
+# scratch notes captured locally only
+notes/
+
 # nix
 .direnv/
 

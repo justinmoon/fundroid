@@ -204,3 +204,12 @@ heartbeat:
 		echo "✗ Heartbeat test failed - logs saved to ${log_file}"
 		exit 1
 	fi
+
+capture-stock-console LOG_DIR="":
+	@set -euo pipefail; \
+	dir="{{LOG_DIR}}"; \
+	if [ -z "$$dir" ]; then \
+		dir="logs/stock-console-$$(date +%Y%m%d-%H%M%S)"; \
+	fi; \
+	echo "Collecting stock console logs into $$dir"; \
+	scripts/capture-stock-console.sh "$$dir"

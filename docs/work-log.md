@@ -21,3 +21,9 @@
 - `cfctl instance create-start --purpose ci --verify-boot --disable-webrtc` is the canonical smoke test; `just heartbeat` wraps it with PID1 repacks and log capture.
 - The Hetzner host keeps stock images in `/var/lib/cuttlefish/images`; modifying them requires updating `~/configs/flake.nix` and redeploying via `just hetzner`.
 - After the daemon refactor (Oct 2025), lifecycle commands return quickly and emit structured errors; lean on them instead of bespoke scripts when iterating.
+- Added `scripts/capture-stock-console.sh`/`just capture-stock-console` so anyone can regenerate the Step 1 console baseline locally without checking multi-megabyte logs into git.
+
+### Oct 2025 – PID1 logging experiments (Experiments 2–5)
+- **Guest exits (Exp 2):** confirmed bubblewrap was dropping supplementary groups, so the daemon/launcher now re-enters `launch_cvd` with the configured user/group and ambient caps preserved. This stopped the “Failed → cleanup removed state” loop.
+- **Init breadcrumbs (Exp 3):** instrumented `heartbeat_init` to create `/tmp/heartbeat-was-here` and emit an `EXPERIMENT-3` marker into `/dev/kmsg`, proving PID1 runs even if console output disappears.
+- **Host tooling (Exp 5):** extended cfctl with `instance describe` (run-log tail + console snapshot path) and automatic console snapshots whenever an instance hits `Failed`, so we no longer need direct access to `/var/lib/cuttlefish` to see early boot logs.

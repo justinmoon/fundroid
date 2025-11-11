@@ -1,7 +1,7 @@
 # Ideas Backlog
 
 ## Cuttlefish + Compositor
-- Keep a stock baseline handy: always archive `kernel.log`, `console_log`, and `cfctl logs --stdout` before testing new `init_boot` images so regressions are obvious.
+- Keep a stock baseline handy: run `just capture-stock-console` before testing new `init_boot` images so you have fresh `console.log`, `kernel.log`, `logcat.txt`, and `run-summary.json` without committing megabytes of data.
 - `cfctl` already understands supplementary groups/capabilities (see commit `ac3259a`); expose a “compositor” profile that exports `CUTTLEFISH_BWRAP_CAPS="--cap-add cap_net_admin"` and joins `cvdnetwork,kvm` when launching guests.
 - Package `compositor-rs`, `test-client`, busybox, and helpers into a tarball straight out of `qemu-init`; then reuse the same scripts to assemble both the QEMU initramfs and the Cuttlefish ramdisk.
 - Add a `just cuttlefish-compositor` loop that: builds binaries → assembles ramdisk → repacks `init_boot` → uploads to Hetzner → runs `cfctl instance create-start --purpose ci --verify-boot` → greps for `[cf-compositor]` markers before destroying the guest.

@@ -3,10 +3,10 @@
 Goal: prove we control PID 1 on Hetzner, see its logs in the captured console, and run `drm_rect` under that init before touching the full compositor.
 
 ## Step 1 – Capture a Stock Console Baseline
-- Run `cfctl instance create-start --purpose ci --verify-boot --disable-webrtc` on Hetzner.
-- Download `kernel.log` and `console_log` for that instance plus `cfctl logs --stdout`.
-- Record in `notes/CONSOLE-OUTPUT-SUMMARY.md` which files show Android’s own PID1 output.
-**Acceptance test:** `console_log` from a stock instance contains SurfaceFlinger boot chatter and clearly shows `init: starting service` lines copied into `notes/CONSOLE-OUTPUT-SUMMARY.md`.
+- Run `just capture-stock-console` (or call `scripts/capture-stock-console.sh <dir>`). It builds cfctl-lite (if needed), boots a stock guest with `--verify-boot`, and writes everything under `logs/stock-console-YYYYmmdd-HHMMSS/`.
+- Inspect `${run}/console.log` and `${run}/logcat.txt` for `init:` and `surfaceflinger` lines; `${run}/kernel.log` is copied from the kept state dir for completeness.
+- The command also drops `${run}/run-summary.json` so you can see the exact cfctl-lite output later.
+**Acceptance test:** The generated `console.log` shows Android’s PID1 (`init: starting service …`) and SurfaceFlinger boot chatter without checking anything into git.
 
 ## Step 2 – Add an Early `/dev/kmsg` Marker
 - Modify `init/init_wrapper.c` (or the smallest heartbeat variant) to mount `devtmpfs`, open `/dev/kmsg`, and write `[cf-pid1] wrapper starting`.

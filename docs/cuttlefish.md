@@ -27,6 +27,7 @@ cfctl instance destroy <id>
 
 ## Handy Commands
 - `just heartbeat` — wraps `scripts/test-heartbeat.sh`, repacks the current PID1, boots an instance, and saves logs under `logs/`.
+- `just capture-stock-console [dir]` — boots a stock guest with cfctl-lite, verifies boot completion, and drops `cfctl-run.log`, `console.log`, `kernel.log`, `logcat.txt`, and `run-summary.json` into the provided directory so Step 1 stays reproducible without committing artifacts.
 - `cfctl instance create/start/wait-adb/destroy` — manual lifecycle entry points when debugging or running multiple guests.
 - `CUTTLEFISH_REMOTE_HOST=hetzner ./scripts/cuttlefish_instance.sh status` — inspect shared instance state.
 - `CI_SKIP_STOCK_SMOKE=1 just ci` — run formatting/tests locally without hitting Hetzner.

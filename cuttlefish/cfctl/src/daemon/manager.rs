@@ -2102,6 +2102,8 @@ impl InstanceManager {
             .arg("--report_anonymous_usage_stats=n")
             .arg("--daemon=false")
             .arg("--console=true")
+            // Keep ttyS0 attached so the persisted console_log captures Android init chatter.
+            .arg("--extra_kernel_cmdline=console=ttyS0,115200")
             .arg("--verbosity=DEBUG")
             .arg("--resume=false");
 

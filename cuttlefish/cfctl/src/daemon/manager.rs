@@ -2099,6 +2099,7 @@ impl InstanceManager {
             init_boot_image: &metadata.init_boot_image,
             enable_webrtc: webrtc_enabled,
             track,
+            use_guest_credentials: true,
         };
         spawn_guest_process(&self.config, &launch, log_file)
 >>>>>>> cc002b6 (Add cfctl-lite run workflow)

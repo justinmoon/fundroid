@@ -16,6 +16,7 @@ pub struct LaunchParams<'a> {
     pub init_boot_image: &'a Path,
     pub enable_webrtc: bool,
     pub track: Option<&'a str>,
+    pub use_guest_credentials: bool,
 }
 
 pub fn spawn_guest_process(
@@ -49,38 +50,60 @@ pub fn spawn_guest_process(
         "GFXSTREAM_HEADLESS",
     ];
 
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(target_user).arg("-g").arg(primary_group);
-    for var in &preserve_vars {
-        cmd.arg(format!("--preserve-env={var}"));
-    }
-    cmd.arg("--");
+    let mut cmd = if params.use_guest_credentials {
+        let mut cmd = Command::new("sudo");
+        cmd.arg("-u").arg(target_user).arg("-g").arg(primary_group);
+        for var in &preserve_vars {
+            cmd.arg(format!("--preserve-env={var}"));
+        }
+        cmd.arg("--");
 
-    if !config.guest_capabilities.is_empty() {
-        let caps_arg = config
-            .guest_capabilities
-            .iter()
-            .map(|c| {
-                if c.starts_with('+') || c.starts_with('-') {
-                    c.clone()
-                } else {
-                    format!("+{c}")
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(",");
-        cmd.arg("setpriv")
-            .arg("--ambient-caps")
-            .arg(&caps_arg)
-            .arg("--");
-    }
+        if !config.guest_capabilities.is_empty() {
+            let caps_arg = config
+                .guest_capabilities
+                .iter()
+                .map(|c| {
+                    if c.starts_with('+') || c.starts_with('-') {
+                        c.clone()
+                    } else {
+                        format!("+{c}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            cmd.arg("setpriv")
+                .arg("--ambient-caps")
+                .arg(&caps_arg)
+                .arg("--");
+        }
 
-    if let Some(track) = params.track {
-        info!(target: "cfctl", "spawn_guest_process: using track '{}'", track);
-        cmd.arg("cfenv").arg("-t").arg(track).arg("--");
+        if let Some(track) = params.track {
+            info!(target: "cfctl", "spawn_guest_process: using track '{}'", track);
+            cmd.arg("cfenv").arg("-t").arg(track).arg("--");
+        } else {
+            cmd.arg(&config.cuttlefish_fhs).arg("--");
+        }
+        cmd
     } else {
-        cmd.arg(&config.cuttlefish_fhs).arg("--");
-    }
+        if let Some(track) = params.track {
+            info!(
+                target: "cfctl",
+                "spawn_guest_process: using track '{}' without sudo",
+                track
+            );
+            let mut cmd = Command::new("cfenv");
+            cmd.arg("-t").arg(track).arg("--");
+            cmd
+        } else {
+            info!(
+                target: "cfctl",
+                "spawn_guest_process: using default FHS wrapper without sudo"
+            );
+            let mut cmd = Command::new(&config.cuttlefish_fhs);
+            cmd.arg("--");
+            cmd
+        }
+    };
 
     cmd.arg("launch_cvd")
         .arg(format!(

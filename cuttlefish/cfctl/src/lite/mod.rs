@@ -1,5 +1,7 @@
+use std::ffi::CString;
 use std::fs::{self, OpenOptions};
 use std::net::TcpListener;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::thread;
@@ -27,6 +29,7 @@ pub struct RunConfig {
     pub timeout_secs: Option<u64>,
     pub keep_state: bool,
     pub track: Option<String>,
+    pub run_as_root: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,22 +65,43 @@ pub fn run_once(cfg: RunConfig) -> Result<RunSummary> {
     fs::create_dir_all(&runtime_cfg.state_dir)?;
     fs::create_dir_all(&runtime_cfg.etc_instances_dir)?;
 
+    let uid = resolve_uid(&runtime_cfg.guest_user)?;
+    let gid = resolve_gid(&runtime_cfg.guest_primary_group)?;
+
     let temp_dir = TempDirBuilder::new()
         .prefix("cfctl-run-")
         .tempdir_in("/tmp")
         .context("creating temporary cfctl-lite workspace")?;
     let mut temp_guard = TempState::new(temp_dir, cfg.keep_state);
+    chown_path(temp_guard.path(), uid, gid)
+        .with_context(|| format!("setting owner on {}", temp_guard.path().display()))?;
 
     runtime_cfg.cuttlefish_instances_dir = temp_guard.path().join("instances");
     runtime_cfg.cuttlefish_assembly_dir = temp_guard.path().join("assembly");
     fs::create_dir_all(&runtime_cfg.cuttlefish_instances_dir)?;
+    chown_path(&runtime_cfg.cuttlefish_instances_dir, uid, gid).with_context(|| {
+        format!(
+            "setting owner on {}",
+            runtime_cfg.cuttlefish_instances_dir.display()
+        )
+    })?;
     fs::create_dir_all(&runtime_cfg.cuttlefish_assembly_dir)?;
+    chown_path(&runtime_cfg.cuttlefish_assembly_dir, uid, gid).with_context(|| {
+        format!(
+            "setting owner on {}",
+            runtime_cfg.cuttlefish_assembly_dir.display()
+        )
+    })?;
 
-    let instance_name = allocate_instance_name();
+    let (instance_name, adb_port) = allocate_instance_slot(runtime_cfg.base_adb_port)?;
     let instance_dir = runtime_cfg.cuttlefish_instances_dir.join(&instance_name);
     let assembly_dir = runtime_cfg.cuttlefish_assembly_dir.join(&instance_name);
     fs::create_dir_all(&instance_dir)?;
+    chown_path(&instance_dir, uid, gid)
+        .with_context(|| format!("setting owner on instance dir {}", instance_dir.display()))?;
     fs::create_dir_all(&assembly_dir)?;
+    chown_path(&assembly_dir, uid, gid)
+        .with_context(|| format!("setting owner on assembly dir {}", assembly_dir.display()))?;
 
     let boot_image = cfg
         .boot_image
@@ -86,7 +110,6 @@ pub fn run_once(cfg: RunConfig) -> Result<RunSummary> {
         .init_boot_image
         .unwrap_or_else(|| runtime_cfg.default_init_boot_image.clone());
 
-    let adb_port = allocate_adb_port()?;
     let connect_serial = format!("0.0.0.0:{adb_port}");
     let adb_serial = format!("{}:{adb_port}", runtime_cfg.adb_host);
 
@@ -105,6 +128,7 @@ pub fn run_once(cfg: RunConfig) -> Result<RunSummary> {
         init_boot_image: &init_boot_image,
         enable_webrtc: !cfg.disable_webrtc,
         track: cfg.track.as_deref(),
+        use_guest_credentials: !cfg.run_as_root,
     };
     let child = spawn_guest_process(&runtime_cfg, &launch, run_log)
         .context("failed to spawn cuttlefish guest")?;
@@ -419,21 +443,37 @@ fn append_run_log(err: anyhow::Error, run_log: &Path) -> anyhow::Error {
     }
 }
 
-fn allocate_adb_port() -> Result<u16> {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).context("allocating adb port")?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
-    Ok(port)
+fn allocate_instance_slot(base_port: u16) -> Result<(String, u16)> {
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() as u64)
+        .unwrap_or(0);
+    let pid = std::process::id() as u64;
+
+    for offset in 0..90u64 {
+        let value = 10 + ((seed + pid + offset) % 90);
+        let port = base_port + value as u16 - 1;
+        if port_available(port)? {
+            return Ok((format!("{value:02}"), port));
+        }
+    }
+    bail!("unable to allocate free adb port after 90 attempts");
 }
 
-fn allocate_instance_name() -> String {
-    let pid = std::process::id() as u32;
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    let value = 1000 + (pid + (nanos % 7000)) % 9000;
-    value.to_string()
+fn port_available(port: u16) -> Result<bool> {
+    match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(listener) => {
+            drop(listener);
+            Ok(true)
+        }
+        Err(err) => {
+            if err.kind() == std::io::ErrorKind::AddrInUse {
+                Ok(false)
+            } else {
+                Err(err.into())
+            }
+        }
+    }
 }
 
 fn console_log_path(instance_dir: &Path, instance_name: &str) -> PathBuf {
@@ -533,7 +573,11 @@ fn cleanup_network(instance_name: &str) {
     if let Ok(id) = instance_name.parse::<u32>() {
         let inst_padded = format!("{id:02}");
         let device = format!("cvd-eth-{inst_padded}");
-        let _ = Command::new("ip").args(["link", "del", &device]).status();
+        let _ = Command::new("ip")
+            .arg("link")
+            .arg("del")
+            .arg(&device)
+            .status();
     }
 }
 
@@ -575,4 +619,40 @@ impl Drop for TempState {
 fn default_logs_dir() -> PathBuf {
     let stamp = Local::now().format("run-%Y%m%d-%H%M%S").to_string();
     PathBuf::from("logs").join(stamp)
+}
+
+fn resolve_uid(username: &str) -> Result<u32> {
+    use std::ffi::CString;
+    let cname = CString::new(username).with_context(|| format!("invalid username: {username}"))?;
+    unsafe {
+        let pwd = libc::getpwnam(cname.as_ptr());
+        if pwd.is_null() {
+            bail!("user '{username}' not found");
+        }
+        Ok((*pwd).pw_uid)
+    }
+}
+
+fn resolve_gid(groupname: &str) -> Result<u32> {
+    use std::ffi::CString;
+    let cname =
+        CString::new(groupname).with_context(|| format!("invalid group name: {groupname}"))?;
+    unsafe {
+        let grp = libc::getgrnam(cname.as_ptr());
+        if grp.is_null() {
+            bail!("group '{groupname}' not found");
+        }
+        Ok((*grp).gr_gid)
+    }
+}
+
+fn chown_path(path: &Path, uid: u32, gid: u32) -> Result<()> {
+    let c_path =
+        CString::new(path.as_os_str().as_bytes()).with_context(|| format!("path {:?}", path))?;
+    let rc = unsafe { libc::chown(c_path.as_ptr(), uid as libc::uid_t, gid as libc::gid_t) };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error())
+            .with_context(|| format!("chown {}", path.display()));
+    }
+    Ok(())
 }

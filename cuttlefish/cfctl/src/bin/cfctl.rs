@@ -48,6 +48,8 @@ enum Commands {
         keep_state: bool,
         #[arg(long)]
         track: Option<String>,
+        #[arg(long)]
+        run_as_root: bool,
     },
     #[command(subcommand)]
     Instance(InstanceCommands),
@@ -155,6 +157,7 @@ fn main() -> Result<()> {
             timeout_secs,
             keep_state,
             track,
+            run_as_root,
         } => {
             let config = LiteRunConfig {
                 boot_image: boot,
@@ -166,6 +169,7 @@ fn main() -> Result<()> {
                 timeout_secs,
                 keep_state,
                 track,
+                run_as_root,
             };
             let summary = run_lite(config)?;
             let output = serde_json::to_string_pretty(&summary)?;

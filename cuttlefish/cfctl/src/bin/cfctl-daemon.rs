@@ -87,6 +87,13 @@ async fn main() -> Result<()> {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,cfctl=info"));
     fmt().with_env_filter(filter).init();
 
+    let guest_capabilities: Vec<String> = args
+        .guest_capabilities
+        .into_iter()
+        .map(|cap| cap.trim().to_string())
+        .filter(|cap| !cap.is_empty())
+        .collect();
+
     let config = CfctlDaemonConfig {
         socket_path: args.socket,
         state_dir: args.state_dir,
@@ -105,7 +112,7 @@ async fn main() -> Result<()> {
         disable_host_gpu: args.disable_host_gpu,
         guest_user: args.guest_user,
         guest_primary_group: args.guest_primary_group,
-        guest_capabilities: args.guest_capabilities,
+        guest_capabilities,
     };
 
     let daemon = CfctlDaemon::new(config);

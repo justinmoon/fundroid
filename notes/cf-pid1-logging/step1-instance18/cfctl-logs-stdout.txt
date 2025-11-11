@@ -1,0 +1,200 @@
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread completed
+VIRTUAL_DEVICE_DISPLAY_POWER_MODE_CHANGED
+Empty field for line: 
+[   11.559416] VIRTUAL_DEVICE_DISPLAY_POWER_MODE_CHANGED display=0 mode=ON
+VIRTUAL_DEVICE_DISPLAY_POWER_MODE_CHANGED
+Empty field for line: 
+[   11.637702] VIRTUAL_DEVICE_DISPLAY_POWER_MODE_CHANGED display=0 mode=ON
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+adb connected to 0.0.0.0:6537
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+virtio_input_hid_handle_status: unknown type 20
+virtio_input_hid_handle_status: unknown type 20
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+Watching for disconnect on 0.0.0.0:6537
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] CORE_RESET_CMD
+[INFO  casimir::controller]          ResetType: ResetConfig
+[INFO  casimir::controller] [0] CORE_INIT_CMD
+[INFO  casimir::controller] [0] RF_DISCOVER_MAP_CMD
+[INFO  casimir::controller] [0] NFCEE_DISCOVER_CMD
+[INFO  casimir::controller] [0] receive_data(1)
+[INFO  casimir::controller] [0] received data on HCI logical connection
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] CORE_GET_CONFIG_CMD
+[INFO  casimir::controller]          ID: LfT3tMax
+[INFO  casimir::controller] [0] CORE_SET_CONFIG_CMD
+[INFO  casimir::controller]          Type: NfccConfigControl
+[INFO  casimir::controller]          Value: [1]
+[INFO  casimir::controller] [0] ANDROID_GET_CAPS_CMD
+[INFO  casimir::controller] [0] ANDROID_QUERY_PASSIVE_OBSERVE_MODE_CMD
+[INFO  casimir::controller]      Observe mode state: 0b0
+[INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+[INFO  casimir::controller] number of exit frames 0
+[INFO  casimir::controller] [0] CORE_SET_POWER_SUB_STATE_CMD
+[INFO  casimir::controller]          State: SwitchedOnSubstate2
+[INFO  casimir::controller] [0] CORE_SET_CONFIG_CMD
+[INFO  casimir::controller]          Type: ConDiscoveryParam
+[INFO  casimir::controller]          Value: [0]
+[INFO  casimir::controller] [0] RF_SET_LISTEN_MODE_ROUTING_CMD
+[INFO  casimir::controller] [0] CORE_SET_CONFIG_CMD
+[INFO  casimir::controller]          Type: RfFieldInfo
+[INFO  casimir::controller]          Value: [1]
+[INFO  casimir::controller] [0] CORE_SET_CONFIG_CMD
+[INFO  casimir::controller]          Type: LaBitFrameSdd
+[INFO  casimir::controller]          Value: [4]
+[INFO  casimir::controller]          Type: LaPlatformConfig
+[INFO  casimir::controller]          Value: [0]
+[INFO  casimir::controller]          Type: LaSelInfo
+[INFO  casimir::controller]          Value: [32]
+[INFO  casimir::controller]          Type: LbSensbInfo
+[INFO  casimir::controller]          Value: [0]
+[INFO  casimir::controller]          Type: LfProtocolType
+[INFO  casimir::controller]          Value: [0]
+[INFO  casimir::controller] [0] CORE_SET_CONFIG_CMD
+[INFO  casimir::controller]          Type: TotalDuration
+[INFO  casimir::controller]          Value: [244, 1]
+[INFO  casimir::controller] [0] RF_DISCOVER_CMD
+[INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+[INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+[INFO  casimir::controller]          Type: IdleMode
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] RF_SET_LISTEN_MODE_ROUTING_CMD
+[INFO  casimir::controller] [0] RF_DISCOVER_CMD
+[INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+[INFO  casimir::controller]          Type: IdleMode
+[INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+[INFO  casimir::controller] number of exit frames 0
+[INFO  casimir::controller] [0] RF_DISCOVER_CMD
+[INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread completed
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+[INFO  casimir::controller]          Type: IdleMode
+[INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+[INFO  casimir::controller] number of exit frames 0
+[INFO  casimir::controller] [0] RF_DISCOVER_CMD
+[INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+VIRTUAL_DEVICE_BOOT_STARTED
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+VIRTUAL_DEVICE_BOOT_COMPLETED
+Virtual device booted successfully
+proxy_adb] Connected to vsock:20:5555
+proxy_adb] Launching proxy threads
+proxy_adb] c2t: Proxy thread started. Starting copying data
+proxy_adb] Proxy is launched. Amount of currently tracked proxy pairs: 3
+proxy_adb] t2c: Proxy thread started. Starting copying data
+proxy_adb] c2t: Proxy thread completed
+proxy_adb] t2c: Proxy thread completed
+[INFO  casimir::controller] [0] ANDROID_QUERY_PASSIVE_OBSERVE_MODE_CMD
+[INFO  casimir::controller]      Observe mode state: 0b0

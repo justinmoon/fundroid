@@ -1,0 +1,946 @@
+
+
+U-Boot 2024.04-gc8fc3d1d8ce6-ab13197479 (Mar 10 2025 - 22:48:14 +0000)
+
+DRAM:  4 GiB
+Core:  10 devices, 10 uclasses, devicetree: separate
+Warning: MP init failure
+         x86_mp_init() returning err=-96
+Net:         eth_initialize() No ethernet found.
+Driver                    uid uclass               Devices
+----------------------------------------------------------
+blk_partition             083 partition            virtio-blk#2:1           
+                                                   virtio-blk#2:2           
+                                                   virtio-blk#2:3           
+                                                   virtio-blk#2:4           
+                                                   virtio-blk#2:5           
+                                                   virtio-blk#2:6           
+                                                   virtio-blk#2:7           
+                                                   virtio-blk#2:8           
+                                                   virtio-blk#2:9           
+                                                   virtio-blk#2:10          
+                                                   virtio-blk#2:11          
+                                                   virtio-blk#2:12          
+                                                   virtio-blk#2:13          
+                                                   virtio-blk#2:14          
+                                                   virtio-blk#2:15          
+                                                   virtio-blk#2:16          
+                                                   virtio-blk#2:17          
+                                                   virtio-blk#2:18          
+                                                   virtio-blk#3:1           
+                                                   virtio-blk#3:2           
+                                                   virtio-blk#3:3           
+                                                   virtio-blk#3:4           
+                                                   virtio-blk#4:1           
+bootmeth_qfw              026 <no uclass>          
+cpu_bus                   109 <no uclass>          
+cpu_qemu                  031 <no uclass>          
+cpu_x86                   031 <no uclass>          
+efi_blk                   022 blk                  <none>
+EFI block driver          038 efi                  <none>
+syscon                    117 syscon               <none>
+intel_irq                 061 irq                  irq-router               
+motorola_mc146818         104 rtc                  rtc                      
+ns16550_serial            108 serial               serial                   
+intel-pch7                084 pch                  pch@1,0                  
+intel-pch9                084 pch                  <none>
+pci_bridge_drv            085 pci                  <none>
+pci_generic_drv           087 pci_generic          pci_0:0.0                
+                                                   pci_0:1.1                
+                                                   pci_0:1.3                
+                                                   pci_0:12.0               
+                                                   pci_0:13.0               
+pci_x86                   085 pci                  pci                      
+qfw_bootdev               025 <no uclass>          
+qfw_pio                   096 qfw                  qfw_pio                  
+root_driver               000 root                 root_driver              
+sysinfo_smbios            118 sysinfo              smbios                   
+vidconsole0               131 vidconsole0          <none>
+virtio-blk                022 blk                  virtio-blk#2             
+                                                   virtio-blk#3             
+                                                   virtio-blk#4             
+virtio_bootdev            025 <no uclass>          
+virtio-console            108 serial               virtio-console#1         
+virtio-console-port       108 serial               virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+                                                   virtio_console_port      
+virtio-net                040 ethernet             virtio-net#13            
+                                                   virtio-net#14            
+virtio-pci.m              133 virtio               virtio-pci.m#0           
+                                                   virtio-pci.m#1           
+                                                   virtio-pci.m#2           
+                                                   virtio-pci.m#3           
+                                                   virtio-pci.m#4           
+                                                   virtio-pci.m#5           
+                                                   virtio-pci.m#6           
+                                                   virtio-pci.m#7           
+                                                   virtio-pci.m#8           
+                                                   virtio-pci.m#9           
+                                                   virtio-pci.m#10          
+                                                   virtio-pci.m#11          
+                                                   virtio-pci.m#12          
+                                                   virtio-pci.m#13          
+                                                   virtio-pci.m#14          
+                                                   virtio-pci.m#15          
+x86_reset                 119 sysreset             reset                    
+x86_tsc_timer             122 timer                tsc-timer                
+## Android Verified Boot 2.0 version 1.2.0
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Verification passed successfully
+Imported supplementary environment
+Cannot find boot CPU, APIC ID 0
+        mp_first_cpu() bsp: returning err=-2
+Invalid CPU (err=-2)
+ANDROID: reboot reason: "(none)"
+      ab_select_slot() ANDROID: Invalid CRC-32 (expected 807077e9, found 00000000),re-initializing A/B metadata.
+      ab_select_slot() ANDROID: Attempting slot a, tries remaining 3
+## Android Verified Boot 2.0 version 1.2.0
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Verification passed successfully
+## Android Verified Boot 2.0 version 1.2.0
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Writing 8 bytes to virtio_console_port console
+Reading 8 bytes from virtio_console_port console
+Verification passed successfully
+ANDROID: Loading ramdisk from "init_boot_a", partition 4.
+ANDROID: Loading kernel from "boot_a", partition 2.
+ANDROID: Loading vendor ramdisk from "vendor_boot_a", partition 6.
+Booting kernel at 0x02400000 with fdt at <NULL> ramdisk 0x0e400000 (0x01555672 bytes)...
+
+
+Valid Boot Flag
+Magic signature found
+Linux kernel version 6.12.18-android16-1-g50eb8d5d443b-ab13257114 (kleaf@build-host) #1 SMP PREEMPT Fri Mar 21 17:01:42 UTC 2025
+Building boot_params at 0x00090000
+Loading bzImage at address 100000 (21623808 bytes)
+Initial RAM disk at linear address 0x0e400000, size 22369906 bytes
+Kernel command line: " printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig  console=hvc0 earlycon=uart8250,io,0x3f8 pnpacpi=off ramoops.mem_address=0x150000000 ramoops.mem_size=0x200000 ramoops.console_size=0x80000 ramoops.record_size=0x80000 ramoops.dump_oops=1 "
+Kernel loaded at 00100000, setup_base=00090000
+
+Starting kernel ...
+
+[    0.000000] Linux version 6.12.18-android16-1-g50eb8d5d443b-ab13257114 (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Fri Mar 21 17:01:42 UTC 2025
+[    0.000000] Command line:  printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig  console=hvc0 earlycon=uart8250,io,0x3f8 pnpacpi=off ramoops.mem_address=0x150000000 ramoops.mem_size=0x200000 ramoops.console_size=0x80000 ramoops.record_size=0x80000 ramoops.dump_oops=1 
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000000a0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000bed74fff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000bed75000-0x00000000bfffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000e0000000-0x00000000efffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000013fffffff] usable
+[    0.000000] earlycon: uart8250 at I/O port 0x3f8 (options '')
+[    0.000000] printk: legacy bootconsole [uart8250] enabled
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] DMI not present or invalid.
+[    0.000000] Hypervisor detected: KVM
+[    0.000000] kvm-clock: Using msrs 4b564d01 and 4b564d00
+[    0.000001] kvm-clock: using sched offset of 3675454898 cycles
+[    0.000949] clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+[    0.003914] tsc: Detected 3600.000 MHz processor
+[    0.004851] last_pfn = 0x140000 max_arch_pfn = 0x400000000
+[    0.005864] MTRR map: 3 entries (3 fixed + 0 variable; max 19), built from 8 variable MTRRs
+[    0.007381] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.008664] CPU MTRRs all blank - virtualized system.
+[    0.009579] last_pfn = 0xbed75 max_arch_pfn = 0x400000000
+[    0.010580] found SMP MP-table at [mem 0x000f0040-0x000f004f]
+[    0.011619] Using GB pages for direct mapping
+[    0.012586] RAMDISK: [mem 0x0e400000-0x0f955fff]
+[    0.013418] ACPI: Early table checksum verification disabled
+[    0.014435] ACPI: RSDP 0x00000000000F0130 000014 (v00 BOCHS )
+[    0.015480] ACPI: RSDT 0x00000000BED7D92C 000040 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.017031] ACPI: FACP 0x00000000BED7D053 000074 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.018569] ACPI: DSDT 0x00000000BED7B080 001FD3 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.020113] ACPI: FACS 0x00000000BED7B040 000040
+[    0.020949] ACPI: APIC 0x00000000BED7D0C7 000080 (v03 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.022485] ACPI: HPET 0x00000000BED7D147 000038 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.024031] ACPI: SRAT 0x00000000BED7D17F 000118 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.025580] ACPI: SSDT 0x00000000BED7D297 00058D (v01 BOCHS  NVDIMM   00000001 BXPC 00000001)
+[    0.027134] ACPI: NFIT 0x00000000BED7D824 0000E0 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.028687] ACPI: WAET 0x00000000BED7D904 000028 (v01 BOCHS  BXPC     00000001 BXPC 00000001)
+[    0.030237] ACPI: Reserving FACP table memory at [mem 0xbed7d053-0xbed7d0c6]
+[    0.031512] ACPI: Reserving DSDT table memory at [mem 0xbed7b080-0xbed7d052]
+[    0.032786] ACPI: Reserving FACS table memory at [mem 0xbed7b040-0xbed7b07f]
+[    0.034063] ACPI: Reserving APIC table memory at [mem 0xbed7d0c7-0xbed7d146]
+[    0.035332] ACPI: Reserving HPET table memory at [mem 0xbed7d147-0xbed7d17e]
+[    0.036600] ACPI: Reserving SRAT table memory at [mem 0xbed7d17f-0xbed7d296]
+[    0.037878] ACPI: Reserving SSDT table memory at [mem 0xbed7d297-0xbed7d823]
+[    0.039163] ACPI: Reserving NFIT table memory at [mem 0xbed7d824-0xbed7d903]
+[    0.040438] ACPI: Reserving WAET table memory at [mem 0xbed7d904-0xbed7d92b]
+[    0.041785] Zone ranges:
+[    0.042252]   DMA32    [mem 0x0000000000001000-0x00000000ffffffff]
+[    0.043373]   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+[    0.044494] Movable zone start for each node
+[    0.045270] Early memory node ranges
+[    0.045912]   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+[    0.047056]   node   0: [mem 0x0000000000100000-0x00000000bed74fff]
+[    0.048192]   node   0: [mem 0x0000000100000000-0x000000013fffffff]
+[    0.049327] Initmem setup node 0 [mem 0x0000000000001000-0x000000013fffffff]
+[    0.050614] On node 0, zone DMA32: 1 pages in unavailable ranges
+[    0.072166] On node 0, zone DMA32: 96 pages in unavailable ranges
+[    0.080290] On node 0, zone Normal: 4747 pages in unavailable ranges
+[    0.082457] ACPI: LAPIC_NMI (acpi_id[0xff] dfl dfl lint[0x1])
+[    0.083521] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.084770] ACPI: INT_SRC_OVR (bus 0 bus_irq 0 global_irq 2 dfl dfl)
+[    0.085928] ACPI: INT_SRC_OVR (bus 0 bus_irq 5 global_irq 5 high level)
+[    0.087130] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+[    0.088328] ACPI: INT_SRC_OVR (bus 0 bus_irq 10 global_irq 10 high level)
+[    0.089558] ACPI: INT_SRC_OVR (bus 0 bus_irq 11 global_irq 11 high level)
+[    0.090791] ACPI: Using ACPI (MADT) for SMP configuration information
+[    0.091969] ACPI: HPET id: 0x8086a201 base: 0xfed00000
+[    0.092897] TSC deadline timer available
+[    0.093617] CPU topo: Max. logical packages:   1
+[    0.094456] CPU topo: Max. logical dies:       1
+[    0.095300] CPU topo: Max. dies per package:   1
+[    0.096149] CPU topo: Max. threads per core:   1
+[    0.096993] CPU topo: Num. cores per package:     2
+[    0.097870] CPU topo: Num. threads per package:   2
+[    0.098755] CPU topo: Allowing 2 present CPUs plus 0 hotplug CPUs
+[    0.099873] kvm-guest: APIC: eoi() replaced with kvm_guest_apic_eoi_write()
+[    0.101154] kvm-guest: KVM setup pv remote TLB flush
+[    0.102057] kvm-guest: setup PV sched yield
+[    0.102814] PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.104192] PM: hibernation: Registered nosave memory: [mem 0x000a0000-0x000fffff]
+[    0.105562] PM: hibernation: Registered nosave memory: [mem 0xbed75000-0xbfffffff]
+[    0.106953] PM: hibernation: Registered nosave memory: [mem 0xc0000000-0xdfffffff]
+[    0.108322] PM: hibernation: Registered nosave memory: [mem 0xe0000000-0xefffffff]
+[    0.109701] PM: hibernation: Registered nosave memory: [mem 0xf0000000-0xffffffff]
+[    0.111079] [mem 0xc0000000-0xdfffffff] available for PCI devices
+[    0.112184] Booting paravirtualized kernel on KVM
+[    0.113059] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645519600211568 ns
+[    0.115359] Load bootconfig: 2391 bytes 122 nodes
+[    0.116367] setup_percpu: NR_CPUS:32 nr_cpumask_bits:2 nr_cpu_ids:2 nr_node_ids:1
+[    0.118665] percpu: Embedded 58 pages/cpu s199832 r8192 d29544 u1048576
+[    0.119909] Kernel command line: vmw_vsock_virtio_transport_common.virtio_transport_max_vsock_pkt_buf_size=16384 console=ttynull stack_depot_disable=on cgroup_disable=pressure bootconfig  printk.devkmsg=on audit=1 panic=-1 8250.nr_uarts=1 cma=0 firmware_class.path=/vendor/etc/ loop.max_part=7 init=/init bootconfig  console=hvc0 earlycon=uart8250,io,0x3f8 pnpacpi=off ramoops.mem_address=0x150000000 ramoops.mem_size=0x200000 ramoops.console_size=0x80000 ramoops.record_size=0x80000 ramoops.dump_oops=1 
+[    0.128229] cgroup: Disabling pressure control group feature
+[    0.129291] audit: enabled (after initialization)
+[    0.130236] random: crng init done
+[    0.132516] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.134797] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.136268] Built 1 zonelists, mobility grouping on.  Total pages: 1043732
+[    0.137770] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.139020] stackdepot: disabled
+[    0.139613] software IO TLB: area num 2.
+[    0.180824] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.182336] rcu: Preemptible hierarchical RCU implementation.
+[    0.183398] rcu: 	RCU event tracing is enabled.
+[    0.184233] rcu: 	RCU restricting CPUs from NR_CPUS=32 to nr_cpu_ids=2.
+[    0.185447] rcu: 	RCU priority boosting: priority 1 delay 500 ms.
+[    0.186562] 	Trampoline variant of Tasks RCU enabled.
+[    0.187488] 	Tracing variant of Tasks RCU enabled.
+[    0.188366] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.189759] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+[    0.191006] RCU Tasks: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.192609] RCU Tasks Trace: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.195825] NR_IRQS: 4352, nr_irqs: 440, preallocated irqs: 16
+[    0.197107] rcu: 	Offload RCU callbacks from CPUs: 0-1.
+[    0.198077] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.199397] kfence: initialized - using 524288 bytes for 63 objects at 0x(____ptrval____)-0x(____ptrval____)
+[    0.201245] ACPI: Core revision 20240827
+[    0.203166] clocksource: hpet: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604467 ns
+[    0.204955] APIC: Switch to symmetric I/O mode setup
+[    0.206010] x2apic enabled
+[    0.206733] APIC: Switched APIC routing to: physical x2apic
+[    0.207750] kvm-guest: APIC: send_IPI_mask() replaced with kvm_send_ipi_mask()
+[    0.209109] kvm-guest: APIC: send_IPI_mask_allbutself() replaced with kvm_send_ipi_mask_allbutself()
+[    0.210770] kvm-guest: setup PV IPIs
+[    0.212220] ..TIMER: vector=0x30 apic1=0 pin1=2 apic2=-1 pin2=-1
+[    0.213364] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x33e452fbb2f, max_idle_ns: 440795236593 ns
+[    0.215279] Calibrating delay loop (skipped) preset value.. 7200.00 BogoMIPS (lpj=14400000)
+[    0.216857] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.219291] Last level iTLB entries: 4KB 512, 2MB 255, 4MB 127
+[    0.220356] Last level dTLB entries: 4KB 512, 2MB 255, 4MB 127, 1GB 0
+[    0.221529] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.223283] Spectre V2 : Mitigation: Retpolines
+[    0.224096] Spectre V2 : Spectre v2 / SpectreRSB mitigation: Filling RSB on context switch
+[    0.225595] Spectre V2 : Spectre v2 / SpectreRSB : Filling RSB on VMEXIT
+[    0.227279] Spectre V2 : Enabling Speculation Barrier for firmware calls
+[    0.228494] RETBleed: Mitigation: untrained return thunk
+[    0.229463] Spectre V2 : mitigation: Enabling conditional Indirect Branch Prediction Barrier
+[    0.231281] Speculative Store Bypass: Mitigation: Speculative Store Bypass disabled via prctl
+[    0.232822] Speculative Return Stack Overflow: IBPB-extending microcode not applied!
+[    0.234337] Speculative Return Stack Overflow: WARNING: See https://kernel.org/doc/html/latest/admin-guide/hw-vuln/srso.html for mitigation options.
+[    0.234338] Speculative Return Stack Overflow: Vulnerable: Safe RET, no microcode
+[    0.236659] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.239279] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.240521] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.241800] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.243279] x86/fpu: Enabled xstate features 0x7, context size is 832 bytes, using 'compacted' format.
+[    0.256094] SMP alternatives: Using kCFI
+[    0.273431] Freeing SMP alternatives memory: 56K
+[    0.274302] pid_max: default: 32768 minimum: 301
+[    0.275181] LSM: initializing lsm=capability,selinux,bpf
+[    0.275313] SELinux:  Initializing.
+[    0.276360] LSM support for eBPF active
+[    0.277113] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.279308] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.281189] smpboot: CPU0: AMD Ryzen 7 3700X 8-Core Processor (family: 0x17, model: 0x71, stepping: 0x0)
+[    0.283277] Performance Events: Fam17h+ core perfctr, AMD PMU driver.
+[    0.283277] ... version:                0
+[    0.283282] ... bit width:              48
+[    0.284017] ... generic registers:      6
+[    0.284745] ... value mask:             0000ffffffffffff
+[    0.285730] ... max period:             00007fffffffffff
+[    0.286693] ... fixed-purpose events:   0
+[    0.287282] ... event mask:             000000000000003f
+[    0.288368] signal: max sigframe size: 1776
+[    0.289219] rcu: Hierarchical SRCU implementation.
+[    0.290095] rcu: 	Max phase no-delay instances is 1000.
+[    0.291199] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.293764] dyndbg: Ignore empty _ddebug table in a CONFIG_DYNAMIC_DEBUG_CORE build
+[    0.295229] smp: Bringing up secondary CPUs ...
+[    0.295497] smpboot: x86: Booting SMP configuration:
+[    0.296393] .... node  #0, CPUs:      #1
+[    0.296552] smp: Brought up 1 node, 2 CPUs
+[    0.296756] smpboot: Total of 2 processors activated (14400.00 BogoMIPS)
+[    0.299396] Memory: 3963408K/4174928K available (22528K kernel code, 2173K rwdata, 15496K rodata, 3096K init, 652K bss, 206716K reserved, 0K cma-reserved)
+[    0.302069] x86/mm: Memory block size: 128MB
+[    0.303794] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.305316] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+[    0.308459] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.309874] audit: initializing netlink subsys (enabled)
+[    0.310870] audit: type=2000 audit(1762806182.437:1): state=initialized audit_enabled=1 res=1
+[    0.310870] ramoops: using module parameters
+[    0.313808] pstore: Using crash dump compression: deflate
+[    0.314969] printk: legacy console [ramoops-1] enabled
+[    0.345565] pstore: Registered ramoops as persistent store backend
+[    0.346836] ramoops: using 0x200000@0x150000000, ecc: 0
+[    0.347534] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.347536] thermal_sys: Registered thermal governor 'step_wise'
+[    0.348760] thermal_sys: Registered thermal governor 'user_space'
+[    0.351284] cpuidle: using governor menu
+[    0.355723] PCI: Using configuration type 1 for base access
+[    0.356879] PCI: Using configuration type 1 for extended access
+[    0.357961] mtrr: your CPUs had inconsistent fixed MTRR settings
+[    0.357961] mtrr: your CPUs had inconsistent MTRRdefType settings
+[    0.358180] mtrr: probably your BIOS does not setup all CPUs.
+[    0.359282] mtrr: corrected configuration.
+[    0.360196] kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+[    0.363773] cryptd: max_cpu_qlen set to 1000
+[    0.365074] ACPI: Added _OSI(Module Device)
+[    0.367425] ACPI: Added _OSI(Processor Device)
+[    0.368509] ACPI: Added _OSI(3.0 _SCP Extensions)
+[    0.369663] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.372817] ACPI: 2 ACPI AML tables successfully acquired and loaded
+[    0.376248] ACPI: Interpreter enabled
+[    0.377171] ACPI: PM: (supports S0 S3 S4 S5)
+[    0.378196] ACPI: Using IOAPIC for interrupt routing
+[    0.379294] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.381472] PCI: Using E820 reservations for host bridge windows
+[    0.383046] ACPI: Enabled 4 GPEs in block 00 to 0F
+[    0.386231] ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-ff])
+[    0.387445] acpi PNP0A03:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI HPX-Type3]
+[    0.389506] PCI host bridge to bus 0000:00
+[    0.390384] pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+[    0.391455] pci_bus 0000:00: root bus resource [io  0x0d00-0xffff window]
+[    0.392860] pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000bffff window]
+[    0.394415] pci_bus 0000:00: root bus resource [mem 0xc0000000-0xfebfffff window]
+[    0.395476] pci_bus 0000:00: root bus resource [mem 0x200000000-0x27fffffff window]
+[    0.397059] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.398447] pci 0000:00:00.0: [8086:1237] type 00 class 0x060000 conventional PCI endpoint
+[    0.400067] pci 0000:00:01.0: [8086:7000] type 00 class 0x060100 conventional PCI endpoint
+[    0.402430] pci 0000:00:01.1: [8086:7010] type 00 class 0x010180 conventional PCI endpoint
+[    0.406697] pci 0000:00:01.1: BAR 4 [io  0x2000-0x200f]
+[    0.412766] pci 0000:00:01.1: BAR 0 [io  0x01f0-0x01f7]: legacy IDE quirk
+[    0.414169] pci 0000:00:01.1: BAR 1 [io  0x03f6]: legacy IDE quirk
+[    0.415454] pci 0000:00:01.1: BAR 2 [io  0x0170-0x0177]: legacy IDE quirk
+[    0.416856] pci 0000:00:01.1: BAR 3 [io  0x0376]: legacy IDE quirk
+[    0.418347] pci 0000:00:01.3: [8086:7113] type 00 class 0x068000 conventional PCI endpoint
+[    0.420093] pci 0000:00:01.3: quirk: [io  0xe400-0xe43f] claimed by PIIX4 ACPI
+[    0.421598] pci 0000:00:01.3: quirk: [io  0xb100-0xb10f] claimed by PIIX4 SMB
+[    0.423536] pci 0000:00:02.0: [1af4:1050] type 00 class 0x038000 conventional PCI endpoint
+[    0.427144] pci 0000:00:02.0: BAR 1 [mem 0xc0000000-0xc0000fff]
+[    0.430632] pci 0000:00:02.0: BAR 4 [mem 0xd0000000-0xd0003fff 64bit pref]
+[    0.433501] pci 0000:00:03.0: [1af4:1043] type 00 class 0x078000 conventional PCI endpoint
+[    0.436557] pci 0000:00:03.0: BAR 1 [mem 0xc0001000-0xc0001fff]
+[    0.439516] pci 0000:00:03.0: BAR 4 [mem 0xd0004000-0xd0007fff 64bit pref]
+[    0.443078] pci 0000:00:04.0: [1af4:1042] type 00 class 0x010000 conventional PCI endpoint
+[    0.448473] pci 0000:00:04.0: BAR 1 [mem 0xc0002000-0xc0002fff]
+[    0.451284] pci 0000:00:04.0: BAR 4 [mem 0xd0008000-0xd000bfff 64bit pref]
+[    0.454748] pci 0000:00:05.0: [1af4:1042] type 00 class 0x010000 conventional PCI endpoint
+[    0.457405] pci 0000:00:05.0: BAR 1 [mem 0xc0003000-0xc0003fff]
+[    0.460059] pci 0000:00:05.0: BAR 4 [mem 0xd000c000-0xd000ffff 64bit pref]
+[    0.463462] pci 0000:00:06.0: [1af4:1042] type 00 class 0x010000 conventional PCI endpoint
+[    0.467132] pci 0000:00:06.0: BAR 1 [mem 0xc0004000-0xc0004fff]
+[    0.468934] pci 0000:00:06.0: BAR 4 [mem 0xd0010000-0xd0013fff 64bit pref]
+[    0.472250] pci 0000:00:07.0: [1af4:105b] type 00 class 0x00ff00 conventional PCI endpoint
+[    0.475283] pci 0000:00:07.0: BAR 4 [mem 0xd0014000-0xd0017fff 64bit pref]
+[    0.479097] pci 0000:00:08.0: [1af4:105b] type 00 class 0x00ff00 conventional PCI endpoint
+[    0.484956] pci 0000:00:08.0: BAR 4 [mem 0xd0018000-0xd001bfff 64bit pref]
+[    0.488194] pci 0000:00:09.0: [1af4:1044] type 00 class 0x00ff00 conventional PCI endpoint
+[    0.491141] pci 0000:00:09.0: BAR 1 [mem 0xc0005000-0xc0005fff]
+[    0.492724] pci 0000:00:09.0: BAR 4 [mem 0xd001c000-0xd001ffff 64bit pref]
+[    0.496123] pci 0000:00:0a.0: [1af4:1052] type 00 class 0x090200 conventional PCI endpoint
+[    0.498976] pci 0000:00:0a.0: BAR 1 [mem 0xc0006000-0xc0006fff]
+[    0.500766] pci 0000:00:0a.0: BAR 4 [mem 0xd0020000-0xd0023fff 64bit pref]
+[    0.504120] pci 0000:00:0b.0: [1af4:1052] type 00 class 0x090000 conventional PCI endpoint
+[    0.506709] pci 0000:00:0b.0: BAR 1 [mem 0xc0007000-0xc0007fff]
+[    0.509168] pci 0000:00:0b.0: BAR 4 [mem 0xd0024000-0xd0027fff 64bit pref]
+[    0.512497] pci 0000:00:0c.0: [1af4:1052] type 00 class 0x098000 conventional PCI endpoint
+[    0.515044] pci 0000:00:0c.0: BAR 1 [mem 0xc0008000-0xc0008fff]
+[    0.520997] pci 0000:00:0c.0: BAR 4 [mem 0xd0028000-0xd002bfff 64bit pref]
+[    0.524800] pci 0000:00:0d.0: [1af4:1052] type 00 class 0x098000 conventional PCI endpoint
+[    0.527282] pci 0000:00:0d.0: BAR 1 [mem 0xc0009000-0xc0009fff]
+[    0.529737] pci 0000:00:0d.0: BAR 4 [mem 0xd002c000-0xd002ffff 64bit pref]
+[    0.533498] pci 0000:00:0e.0: [1af4:1045] type 00 class 0x00ff00 conventional PCI endpoint
+[    0.536515] pci 0000:00:0e.0: BAR 4 [mem 0xd0030000-0xd0033fff 64bit pref]
+[    0.539642] pci 0000:00:0f.0: [1af4:1041] type 00 class 0x020000 conventional PCI endpoint
+[    0.542203] pci 0000:00:0f.0: BAR 1 [mem 0xc000a000-0xc000afff]
+[    0.544634] pci 0000:00:0f.0: BAR 4 [mem 0xd0034000-0xd0037fff 64bit pref]
+[    0.546441] pci 0000:00:0f.0: ROM [mem 0xc0040000-0xc007ffff pref]
+[    0.548950] pci 0000:00:10.0: [1af4:1041] type 00 class 0x020000 conventional PCI endpoint
+[    0.551493] pci 0000:00:10.0: BAR 1 [mem 0xc0080000-0xc0080fff]
+[    0.554355] pci 0000:00:10.0: BAR 4 [mem 0xd0038000-0xd003bfff 64bit pref]
+[    0.555841] pci 0000:00:10.0: ROM [mem 0xc00c0000-0xc00fffff pref]
+[    0.558633] pci 0000:00:11.0: [1af4:1053] type 00 class 0x078000 conventional PCI endpoint
+[    0.560317] pci 0000:00:11.0: BAR 1 [mem 0xc0100000-0xc0100fff]
+[    0.563172] pci 0000:00:11.0: BAR 4 [mem 0xd003c000-0xd003ffff 64bit pref]
+[    0.565222] pci 0000:00:12.0: [8086:2415] type 00 class 0x040100 conventional PCI endpoint
+[    0.567286] pci 0000:00:12.0: BAR 0 [io  0x2400-0x27ff]
+[    0.568775] pci 0000:00:12.0: BAR 1 [io  0x2800-0x28ff]
+[    0.573343] pci 0000:00:13.0: [1b36:000d] type 00 class 0x0c0330 conventional PCI endpoint
+[    0.575387] pci 0000:00:13.0: BAR 0 [mem 0xc0104000-0xc0107fff 64bit]
+[    0.579264] ACPI: PCI: Interrupt link LNKA configured for IRQ 0
+[    0.583446] ACPI: PCI: Interrupt link LNKA disabled
+[    0.585078] ACPI: PCI: Interrupt link LNKB configured for IRQ 0
+[    0.586309] ACPI: PCI: Interrupt link LNKB disabled
+[    0.587434] ACPI: PCI: Interrupt link LNKC configured for IRQ 10
+[    0.588817] ACPI: PCI: Interrupt link LNKD configured for IRQ 6
+[    0.590125] ACPI: PCI: Interrupt link LNKS configured for IRQ 9
+[    0.591814] iommu: Default domain type: Translated
+[    0.592816] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.594210] SCSI subsystem initialized
+[    0.595127] ACPI: bus type USB registered
+[    0.595429] usbcore: registered new interface driver usbfs
+[    0.596617] usbcore: registered new interface driver hub
+[    0.597717] usbcore: registered new device driver usb
+[    0.598828] mc: Linux media interface: v0.10
+[    0.599412] videodev: Linux video capture interface: v2.00
+[    0.600585] EDAC MC: Ver: 3.0.0
+[    0.603344] Advanced Linux Sound Architecture Driver Initialized.
+[    0.604617] PCI: Using ACPI for IRQ routing
+[    0.604877] vgaarb: loaded
+[    0.607528] hpet0: at MMIO 0xfed00000, IRQs 2, 8, 0
+[    0.608536] hpet0: 3 comparators, 64-bit 100.000000 MHz counter
+[    0.611320] clocksource: Switched to clocksource kvm-clock
+[    0.612755] VFS: Disk quotas dquot_6.6.0
+[    0.613596] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.615126] pnp: PnP ACPI: disabled
+[    0.616074] NET: Registered PF_INET protocol family
+[    0.617382] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.634990] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.637095] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.638941] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.641299] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.643062] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.644590] UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.646100] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.647745] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.649053] NET: Registered PF_XDP protocol family
+[    0.650159] pci_bus 0000:00: resource 4 [io  0x0000-0x0cf7 window]
+[    0.651566] pci_bus 0000:00: resource 5 [io  0x0d00-0xffff window]
+[    0.652920] pci_bus 0000:00: resource 6 [mem 0x000a0000-0x000bffff window]
+[    0.654485] pci_bus 0000:00: resource 7 [mem 0xc0000000-0xfebfffff window]
+[    0.656053] pci_bus 0000:00: resource 8 [mem 0x200000000-0x27fffffff window]
+[    0.657698] pci 0000:00:01.0: PIIX3: Enabling Passive Release
+[    0.659007] pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+[    0.690528] ACPI: \_SB_.LNKC: Enabled at IRQ 10
+[    0.721761] pci 0000:00:13.0: quirk_usb_early_handoff+0x0/0x790 took 59784 usecs
+[    0.723523] PCI: CLS 32 bytes, default 64
+[    0.724516] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.724624] Trying to unpack rootfs image as initramfs...
+[    0.725897] software IO TLB: mapped [mem 0x00000000bad75000-0x00000000bed75000] (64MB)
+[    0.729338] kvm_intel: VMX not supported by CPU 1
+[    0.730510] kvm_amd: TSC scaling supported
+[    0.731530] kvm_amd: Nested Virtualization enabled
+[    0.732563] kvm_amd: Nested Paging enabled
+[    0.733432] kvm_amd: LBR virtualization supported
+[    0.734417] kvm_amd: Virtual VMLOAD VMSAVE supported
+[    0.735451] kvm_amd: Virtual GIF supported
+[    0.742285] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x33e452fbb2f, max_idle_ns: 440795236593 ns
+[    0.744411] platform rtc_cmos: registered platform RTC device (no PNP device found)
+[    0.746431] Initialise system trusted keyrings
+[    0.747453] workingset: timestamp_bits=46 max_order=20 bucket_order=0
+[    0.749051] fuse: init (API version 7.41)
+[    0.769735] Key type asymmetric registered
+[    0.770617] Asymmetric key parser 'x509' registered
+[    0.771682] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 240)
+[    0.773249] io scheduler mq-deadline registered
+[    0.774204] io scheduler kyber registered
+[    0.775051] io scheduler bfq registered
+[    0.776110] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input0
+[    0.779980] ACPI: button: Power Button [PWRF]
+[    0.781111] Serial: 8250/16550 driver, 1 ports, IRQ sharing disabled
+[    0.782709] serial8250: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[    0.784705] printk: legacy console [ttynull0] enabled
+[    0.785934] ACPI: bus type drm_connector registered
+[    0.789720] brd: module loaded
+[    0.793005] loop: module loaded
+[    0.801604] Freeing initrd memory: 21844K
+[    0.806961] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+[    0.808919] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+[    0.811386] tun: Universal TUN/TAP device driver, 1.6
+[    0.843069] xhci_hcd 0000:00:13.0: xHCI Host Controller
+[    0.844175] xhci_hcd 0000:00:13.0: new USB bus registered, assigned bus number 1
+[    0.846000] xhci_hcd 0000:00:13.0: hcc params 0x00087001 hci version 0x100 quirks 0x0000000000000010
+[    0.848609] xhci_hcd 0000:00:13.0: xHCI Host Controller
+[    0.849696] xhci_hcd 0000:00:13.0: new USB bus registered, assigned bus number 2
+[    0.851206] xhci_hcd 0000:00:13.0: Host supports USB 3.0 SuperSpeed
+[    0.852603] usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 6.12
+[    0.854406] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    0.856036] usb usb1: Product: xHCI Host Controller
+[    0.857069] usb usb1: Manufacturer: Linux 6.12.18-android16-1-g50eb8d5d443b-ab13257114 xhci-hcd
+[    0.858849] usb usb1: SerialNumber: 0000:00:13.0
+[    0.859890] hub 1-0:1.0: USB hub found
+[    0.860735] hub 1-0:1.0: 4 ports detected
+[    0.861871] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    0.863559] usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 6.12
+[    0.865486] usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    0.866960] usb usb2: Product: xHCI Host Controller
+[    0.867985] usb usb2: Manufacturer: Linux 6.12.18-android16-1-g50eb8d5d443b-ab13257114 xhci-hcd
+[    0.869795] usb usb2: SerialNumber: 0000:00:13.0
+[    0.870826] hub 2-0:1.0: USB hub found
+[    0.871640] hub 2-0:1.0: 4 ports detected
+[    0.876970] usbcore: registered new interface driver uas
+[    0.878087] usbcore: registered new interface driver usb-storage
+[    0.879376] i8042: PNP: No PS/2 controller found.
+[    0.880390] i8042: Probing ports directly.
+[    0.881971] serio: i8042 KBD port at 0x60,0x64 irq 1
+[    0.883011] serio: i8042 AUX port at 0x60,0x64 irq 12
+[    0.884399] usbcore: registered new interface driver xpad
+[    0.885713] rtc_cmos rtc_cmos: RTC can wake from S4
+[    0.887362] rtc_cmos rtc_cmos: registered as rtc0
+[    0.888592] rtc_cmos rtc_cmos: setting system clock to 2025-11-10T20:23:02 UTC (1762806182)
+[    0.890555] rtc_cmos rtc_cmos: alarms up to one day, y3k, 114 bytes nvram, hpet irqs
+[    0.892328] gspca_main: v2.14.0 registered
+[    0.893305] usbcore: registered new interface driver uvcvideo
+[    0.894681] input: AT Raw Set 2 keyboard as /devices/platform/i8042/serio0/input/input1
+[    0.896322] device-mapper: uevent: version 1.0.3
+[    0.897654] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@lists.linux.dev
+[    0.899639] amd_pstate: the _CPC object is not present in SBIOS or ACPI disabled
+[    0.901226] sdhci: Secure Digital Host Controller Interface driver
+[    0.902507] sdhci: Copyright(c) Pierre Ossman
+[    0.903471] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.904788] hid: raw HID events driver (C) Jiri Kosina
+[    0.906119] usbcore: registered new interface driver usbhid
+[    0.907289] usbhid: USB HID core driver
+[    0.908126] ashmem_rust: Using Rust implementation.
+[    0.908277] usbcore: registered new interface driver snd-usb-audio
+[    0.910664] GACT probability NOT on
+[    0.911412] Mirror/redirect action on
+[    0.912206] netem: version 1.3
+[    0.912858] u32 classifier
+[    0.913450]     input device check on
+[    0.914235]     Actions configured
+[    0.915611] xt_time: kernel timezone is -0000
+[    0.916614] ipip: IPv4 and MPLS over IPv4 tunneling driver
+[    0.917875] gre: GRE over IPv4 demultiplexor driver
+[    0.918924] ip_gre: GRE over IPv4 tunneling driver
+[    0.920236] IPv4 over IPsec tunneling driver
+[    0.921263] Initializing XFRM netlink socket
+[    0.922166] IPsec XFRM device driver
+[    0.922936] NET: Registered PF_INET6 protocol family
+[    0.924811] Segment Routing with IPv6
+[    0.925728] In-situ OAM (IOAM) with IPv6
+[    0.926724] mip6: Mobile IPv6
+[    0.927603] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    0.929327] ip6_gre: GRE over IPv6 tunneling driver
+[    0.930678] NET: Registered PF_PACKET protocol family
+[    0.931692] NET: Registered PF_KEY protocol family
+[    0.932804] NET: Registered PF_VSOCK protocol family
+[    0.934148] IPI shorthand broadcast: enabled
+[    0.935074] AES CTR mode by8 optimization enabled
+[    0.939557] sched_clock: Marking stable (920006150, 15927140)->(944697880, -8764590)
+[    0.941311] registered taskstats version 1
+[    0.942286] Loading compiled-in X.509 certificates
+[    0.943765] Loaded X.509 cert 'Build time autogenerated kernel key: 4dcd184ac7973ac97ec937a2f603db90b193326d'
+[    0.949822] page_owner is disabled
+[    0.950548] Key type .fscrypt registered
+[    0.951352] Key type fscrypt-provisioning registered
+[    0.969601] ALSA device list:
+[    0.970224]   No soundcards found.
+[    0.971427] Freeing unused kernel image (initmem) memory: 3096K
+[    0.972738] Write protecting the kernel read-only data: 38912k
+[    0.974235] Freeing unused kernel image (rodata/data gap) memory: 888K
+[    0.975577] Run /init as init process
+[    0.977531] init: init first stage started!
+[    0.978691] init: Loading module /lib/modules/failover.ko with args ''
+[    0.980307] init: Loaded kernel module /lib/modules/failover.ko
+[    0.981584] init: Loading module /lib/modules/nd_virtio.ko with args ''
+[    0.983138] init: Loaded kernel module /lib/modules/nd_virtio.ko
+[    0.984469] init: Loading module /lib/modules/net_failover.ko with args ''
+[    0.986188] init: Loaded kernel module /lib/modules/net_failover.ko
+[    0.987544] init: Loading module /lib/modules/virtio_dma_buf.ko with args ''
+[    0.989324] init: Loaded kernel module /lib/modules/virtio_dma_buf.ko
+[    0.990697] init: Loading module /lib/modules/virtio-gpu.ko with args ''
+[    0.993887] init: Loaded kernel module /lib/modules/virtio-gpu.ko
+[    0.995226] init: Loading module /lib/modules/virtio_input.ko with args ''
+[    0.996908] init: Loaded kernel module /lib/modules/virtio_input.ko
+[    0.998271] init: Loading module /lib/modules/virtio_net.ko with args ''
+[    1.001153] init: Loaded kernel module /lib/modules/virtio_net.ko
+[    1.002482] init: Loading module /lib/modules/virtio-rng.ko with args ''
+[    1.004056] init: Loaded kernel module /lib/modules/virtio-rng.ko
+[    1.005341] init: Loading module /lib/modules/libarc4.ko with args ''
+[    1.007250] init: Loaded kernel module /lib/modules/libarc4.ko
+[    1.008559] init: Loading module /lib/modules/rfkill.ko with args ''
+[    1.010629] init: Loaded kernel module /lib/modules/rfkill.ko
+[    1.011833] init: Loading module /lib/modules/cfg80211.ko with args ''
+[    1.024579] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    1.026283] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    1.027556] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    1.029103] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[    1.030995] cfg80211: failed to load regulatory.db
+[    1.032145] init: Loaded kernel module /lib/modules/cfg80211.ko
+[    1.033598] init: Loading module /lib/modules/mac80211.ko with args ''
+[    1.044300] init: Loaded kernel module /lib/modules/mac80211.ko
+[    1.045694] init: Loading module /lib/modules/mac80211_hwsim.ko with args 'radios=0'
+[    1.048612] mac80211_hwsim: initializing netlink
+[    1.049890] init: Loaded kernel module /lib/modules/mac80211_hwsim.ko
+[    1.051351] init: Loading module /lib/modules/virtio_blk.ko with args ''
+[    1.053636] init: Loaded kernel module /lib/modules/virtio_blk.ko
+[    1.055014] init: Loading module /lib/modules/virtio_console.ko with args ''
+[    1.057689] init: Loaded kernel module /lib/modules/virtio_console.ko
+[    1.059159] init: Loading module /lib/modules/virtio_pci_modern_dev.ko with args ''
+[    1.061488] init: Loaded kernel module /lib/modules/virtio_pci_modern_dev.ko
+[    1.063076] init: Loading module /lib/modules/virtio_pci_legacy_dev.ko with args ''
+[    1.065337] init: Loaded kernel module /lib/modules/virtio_pci_legacy_dev.ko
+[    1.066928] init: Loading module /lib/modules/virtio_pci.ko with args ''
+[    1.100439] ACPI: \_SB_.LNKB: Enabled at IRQ 11
+[    1.102690] [drm] pci: virtio-gpu-pci detected at 0000:00:02.0
+[    1.104492] [drm] features: -virgl +edid -resource_blob -host_visible
+[    1.104494] [drm] features: -context_init
+[    1.107624] [drm] number of scanouts: 1
+[    1.108535] [drm] number of cap sets: 0
+[    1.109668] [drm] Initialized virtio_gpu 0.1.0 for 0000:00:02.0 on minor 0
+[    1.166187] printk: legacy console [hvc0] enabled
+[    1.167364] printk: legacy bootconsole [uart8250] disabled
+
+
+.-gc8fc3d1d8ce6-ab13197479 (Mar 10 2025 - 22:48:14 +0000)console:/ $ .-gc8fc3d1d8ce6-ab13197479 (Mar 10 2025 - 22:48:14 +0000)
+/system/bin/sh: syntax error: unexpected 'Mar'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ DRAM:  4 GiB
+/system/bin/sh: DRAM:: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ Core:  10 devices, 10 uclasses, devicetree: separate
+/system/bin/sh: Core:: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ Warning: MP init failure
+/system/bin/sh: Warning:: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $          x86_mp_init() returning err=-96
+console:/ $ 
+console:/ $ 
+console:/ $ 
+console:/ $ Net:         eth_initialize() No ethernet found.
+/system/bin/sh: syntax error: unexpected '('
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ Driver                    uid uclass               Devices
+/system/bin/sh: Driver: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ ----------------------------------------------------------
+/system/bin/sh: ----------------------------------------------------------: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ blk_partition             083 partition            virtio-blk#tion             083 partition            virtio-blk#                         <2:1           
+/system/bin/sh: blk_partition: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:2           
+/system/bin/sh: virtio-blk#2:2: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:3           
+/system/bin/sh: virtio-blk#2:3: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:4           
+/system/bin/sh: virtio-blk#2:4: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:5           
+/system/bin/sh: virtio-blk#2:5: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:6           
+/system/bin/sh: virtio-blk#2:6: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:7           
+/system/bin/sh: virtio-blk#2:7: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:8           
+/system/bin/sh: virtio-blk#2:8: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:9           
+/system/bin/sh: virtio-blk#2:9: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:10          
+/system/bin/sh: virtio-blk#2:10: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:11          
+/system/bin/sh: virtio-blk#2:11: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:12          
+/system/bin/sh: virtio-blk#2:12: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:13          
+/system/bin/sh: virtio-blk#2:13: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:14          
+/system/bin/sh: virtio-blk#2:14: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:15          
+/system/bin/sh: virtio-blk#2:15: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:16          
+/system/bin/sh: virtio-blk#2:16: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:17          
+/system/bin/sh: virtio-blk#2:17: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <2:18          
+/system/bin/sh: virtio-blk#2:18: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <3:1           
+/system/bin/sh: virtio-blk#3:1: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <3:2           
+/system/bin/sh: virtio-blk#3:2: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <3:3           
+/system/bin/sh: virtio-blk#3:3: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <3:4           
+/system/bin/sh: virtio-blk#3:4: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <4:1           
+/system/bin/sh: virtio-blk#4:1: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ bootmeth_qfw              026 <no uclass>          
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ cpu_bus                   109 <no uclass>          
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ cpu_qemu                  031 <no uclass>          
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ cpu_x86                   031 <no uclass>          
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ efi_blk                   022 blk                  <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ EFI block driver          038 efi                  <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ syscon                    117 syscon               <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ intel_irq                 061 irq                  irq-router                  061 irq                  irq-router                            <            
+/system/bin/sh: intel_irq: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ motorola_mc146818         104 rtc                  rtc        mc146818         104 rtc                  rtc                                 <              
+/system/bin/sh: motorola_mc146818: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ ns16550_serial            108 serial               serial     erial            108 serial               serial                              <              
+/system/bin/sh: ns16550_serial: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ intel-pch7                084 pch                  pch@1,0    7                084 pch                  pch@1,0                             <              
+/system/bin/sh: intel-pch7: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ intel-pch9                084 pch                  <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ pci_bridge_drv            085 pci                  <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ pci_generic_drv           087 pci_generic          pci_0:0.0    _drv           087 pci_generic          pci_0:0.0                             <            
+/system/bin/sh: pci_generic_drv: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    pci_0:1.1                                            pci_0:1.1                           <              
+/system/bin/sh: pci_0:1.1: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    pci_0:1.3                                            pci_0:1.3                           <              
+/system/bin/sh: pci_0:1.3: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    pci_0:12.0                                           pci_0:12.0                          <              
+/system/bin/sh: pci_0:12.0: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    pci_0:13.0                                           pci_0:13.0                          <              
+/system/bin/sh: pci_0:13.0: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ pci_x86                   085 pci                  pci                         085 pci                  pci                                 <              
+/system/bin/sh: pci_x86: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ qfw_bootdev               025 <no uclass>          
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ qfw_pio                   096 qfw                  qfw_pio                     096 qfw                  qfw_pio                               <            
+/system/bin/sh: qfw_pio: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ root_driver               000 root                 root_driverer               000 root                 root_driver                         <              
+/system/bin/sh: root_driver: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ sysinfo_smbios            118 sysinfo              smbios     mbios            118 sysinfo              smbios                              <              
+/system/bin/sh: sysinfo_smbios: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ vidconsole0               131 vidconsole0          <none>
+/system/bin/sh: syntax error: unexpected 'newline'
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ 
+1|console:/ $ virtio-blk                022 blk                  virtio-blk#2                022 blk                  virtio-blk#2                          <            
+/system/bin/sh: virtio-blk: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <3             
+/system/bin/sh: virtio-blk#3: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $                                                    virtio-blk#                                          virtio-blk#                         <4             
+/system/bin/sh: virtio-blk#4: inaccessible or not found
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ 
+127|console:/ $ virtio_bootdev            025 <no uclass>         

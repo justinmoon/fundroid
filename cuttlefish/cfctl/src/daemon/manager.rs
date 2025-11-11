@@ -2024,25 +2024,20 @@ impl InstanceManager {
         let inst_name = id.to_string();
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
-        
-        // Use sudo to switch user with configured primary group before entering FHS
-        // This preserves the group through bubblewrap's namespace isolation
+
         let target_user = &self.config.guest_user;
         let primary_group = &self.config.guest_primary_group;
-        
-        // Resolve UIDs/GIDs for logging
+
         let uid = resolve_uid(target_user)?;
         let gid = resolve_gid(primary_group)?;
-        
+
         info!(
             target: "cfctl",
             "spawn_guest_process: resolved credentials uid={}:{} gid={}:{} caps={:?}",
             target_user, uid, primary_group, gid, self.config.guest_capabilities
         );
-        
-        // Use sudo to switch to target user with primary group
-        // Preserve CUTTLEFISH_* environment variables that we set below
-        let preserve_vars = vec![
+
+        let preserve_vars = [
             "CUTTLEFISH_INSTANCE",
             "CUTTLEFISH_INSTANCE_NUM",
             "CUTTLEFISH_ADB_TCP_PORT",
@@ -2050,26 +2045,42 @@ impl InstanceManager {
             "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR",
             "GFXSTREAM_HEADLESS",
         ];
-        let mut cmd = Command::new("sudo");
-        cmd.arg("-u").arg(target_user)
-           .arg("-g").arg(primary_group);
-        for var in &preserve_vars {
-            cmd.arg(format!("--preserve-env={}", var));
+
+        let running_as_root = unsafe { libc::geteuid() } == 0;
+        let mut cmd = if running_as_root {
+            Command::new("setpriv")
+        } else {
+            let mut sudo_cmd = Command::new("sudo");
+            for var in &preserve_vars {
+                sudo_cmd.arg(format!("--preserve-env={}", var));
+            }
+            sudo_cmd.arg("--");
+            sudo_cmd.arg("setpriv");
+            sudo_cmd
+        };
+
+        cmd.arg(format!("--reuid={}", uid))
+            .arg(format!("--regid={}", gid))
+            .arg("--init-groups");
+
+        let caps_arg = self
+            .config
+            .guest_capabilities
+            .iter()
+            .map(|cap| {
+                if cap.starts_with('+') || cap.starts_with('-') {
+                    cap.clone()
+                } else {
+                    format!("+{}", cap)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        if !caps_arg.is_empty() {
+            cmd.arg("--ambient-caps").arg(&caps_arg);
         }
+
         cmd.arg("--");
-        
-        // Add setpriv to set ambient capabilities if any are configured
-        if !self.config.guest_capabilities.is_empty() {
-            let caps_arg = self.config.guest_capabilities
-                .iter()
-                .map(|c| if c.starts_with('+') || c.starts_with('-') { c.clone() } else { format!("+{}", c) })
-                .collect::<Vec<_>>()
-                .join(",");
-            cmd.arg("setpriv")
-               .arg("--ambient-caps")
-               .arg(&caps_arg)
-               .arg("--");
-        }
         
         // Use cfenv if track specified, otherwise direct FHS wrapper
         if let Some(t) = track {

@@ -32,3 +32,9 @@ cfctl instance destroy <id>
 - `CI_SKIP_STOCK_SMOKE=1 just ci` — run formatting/tests locally without hitting Hetzner.
 
 See `docs/plans/cf-pid1-logging.md` before attempting new PID1 experiments; it calls out the current acceptance tests and how to capture console output reliably.
+
+## Per-Agent cfctl stacks
+- Run `scripts/cfctl-agent.sh <agent>` (for example `alfa`) to start a private daemon bound to `~/.cache/cfctl-<agent>/cfctl.sock` plus isolated state/instances/assembly directories under the same prefix. Pass `--binary /path/to/cfctl-daemon` if you want to skip `cargo run`.
+- The launcher writes the resolved paths to `~/.cache/cfctl-<agent>/env`. You can also export them directly via `eval "$(scripts/agent-env.sh <agent>)"` which sets `CFCTL_SOCKET`, `CFCTL_STATE_DIR`, `CFCTL_ETC_DIR`, `CFCTL_CUTTLEFISH_INSTANCES_DIR`, and `CFCTL_CUTTLEFISH_ASSEMBLY_DIR`.
+- Point any command or test at the agent socket, e.g. `CFCTL_SOCKET=$HOME/.cache/cfctl-alfa/cfctl.sock nix develop -c just heartbeat`.
+- Everything lives under `~/.cache/cfctl-<agent>/`; delete that directory to reclaim space once you are done with a throwaway stack.

@@ -3,6 +3,8 @@ mod guest;
 mod manager;
 mod util;
 
+pub(crate) use util::tail_file;
+
 pub use config::CfctlDaemonConfig;
 
 use std::{fs, os::unix::fs::PermissionsExt, sync::Arc, thread};

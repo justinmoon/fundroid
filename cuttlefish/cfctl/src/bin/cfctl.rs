@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use cfctl::{
+    lite::{run_once as run_lite, RunConfig as LiteRunConfig},
     DeployRequest, DestroyOptions, InstanceId, LogsOptions, Request, Response, StartOptions,
 };
 use clap::{Parser, Subcommand};
@@ -27,6 +28,27 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Launch a temporary cuttlefish guest without the cfctl daemon.
+    Run {
+        #[arg(long)]
+        boot: Option<PathBuf>,
+        #[arg(long)]
+        init: Option<PathBuf>,
+        #[arg(long)]
+        logs_dir: Option<PathBuf>,
+        #[arg(long)]
+        disable_webrtc: bool,
+        #[arg(long)]
+        verify_boot: bool,
+        #[arg(long)]
+        skip_adb_wait: bool,
+        #[arg(long)]
+        timeout_secs: Option<u64>,
+        #[arg(long)]
+        keep_state: bool,
+        #[arg(long)]
+        track: Option<String>,
+    },
     #[command(subcommand)]
     Instance(InstanceCommands),
     /// Copy boot/init images into the instance workspace and update env.
@@ -123,6 +145,33 @@ enum InstanceCommands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let response = match cli.command {
+        Commands::Run {
+            boot,
+            init,
+            logs_dir,
+            disable_webrtc,
+            verify_boot,
+            skip_adb_wait,
+            timeout_secs,
+            keep_state,
+            track,
+        } => {
+            let config = LiteRunConfig {
+                boot_image: boot,
+                init_boot_image: init,
+                logs_dir,
+                disable_webrtc,
+                verify_boot,
+                skip_adb_wait,
+                timeout_secs,
+                keep_state,
+                track,
+            };
+            let summary = run_lite(config)?;
+            let output = serde_json::to_string_pretty(&summary)?;
+            println!("{output}");
+            return Ok(());
+        }
         Commands::Instance(cmd) => match cmd {
             InstanceCommands::Create { purpose } => {
                 send_request(&cli.socket, Request::CreateInstance { purpose })?

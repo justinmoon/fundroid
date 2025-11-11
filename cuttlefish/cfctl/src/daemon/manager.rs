@@ -4,7 +4,7 @@ use std::{
     io::{Read, Seek, SeekFrom, Write},
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    process::{self, Child, Command, Stdio},
+    process::{self, Child, Command},
     sync::{mpsc, Arc},
     thread,
     time::{Duration, Instant},
@@ -15,6 +15,8 @@ use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
+use crate::adb::{adb_connect, adb_shell_getprop, resolve_active_adb_serial};
+use crate::launcher::{spawn_guest_process, LaunchParams};
 use crate::protocol::{
     AdbInfo, BootVerificationResult, CleanupSummary, CreateInstanceResponse, DestroyOptions,
     ErrorDetail, InstanceActionResponse, InstanceId, InstanceState, InstanceSummary, LogsOptions,
@@ -27,34 +29,6 @@ use super::util::{epoch_secs, run_command_allow_failure, run_command_capture, ta
 
 const ID_ALLOC_FILE: &str = "next_id";
 const METADATA_FILE: &str = "metadata.json";
-
-/// Resolve a username to a UID using libc getpwnam
-fn resolve_uid(username: &str) -> Result<u32> {
-    use std::ffi::CString;
-    let cname = CString::new(username)
-        .with_context(|| format!("invalid username: {}", username))?;
-    unsafe {
-        let pwd = libc::getpwnam(cname.as_ptr());
-        if pwd.is_null() {
-            anyhow::bail!("user '{}' not found", username);
-        }
-        Ok((*pwd).pw_uid)
-    }
-}
-
-/// Resolve a group name to a GID using libc getgrnam
-fn resolve_gid(groupname: &str) -> Result<u32> {
-    use std::ffi::CString;
-    let cname = CString::new(groupname)
-        .with_context(|| format!("invalid group name: {}", groupname))?;
-    unsafe {
-        let grp = libc::getgrnam(cname.as_ptr());
-        if grp.is_null() {
-            anyhow::bail!("group '{}' not found", groupname);
-        }
-        Ok((*grp).gr_gid)
-    }
-}
 
 struct InstancePaths {
     root: PathBuf,
@@ -858,7 +832,8 @@ impl InstanceManager {
         if options.skip_adb_wait && options.verify_boot {
             return Err(error_detail(
                 "start_instance_invalid_options",
-                "cannot use both skip_adb_wait and verify_boot (boot verification requires ADB)".to_string(),
+                "cannot use both skip_adb_wait and verify_boot (boot verification requires ADB)"
+                    .to_string(),
             ));
         }
 
@@ -914,8 +889,13 @@ impl InstanceManager {
         let run_log = self
             .prepare_run_log(&paths)
             .map_err(|err| error_detail("start_instance_prepare_log", err.to_string()))?;
-        let child = match self.spawn_guest_process(id, &metadata, run_log, !options.disable_webrtc, options.track.as_deref())
-        {
+        let child = match self.spawn_guest_process(
+            id,
+            &metadata,
+            run_log,
+            !options.disable_webrtc,
+            options.track.as_deref(),
+        ) {
             Ok(child) => child,
             Err(err) => {
                 warn!(
@@ -960,25 +940,27 @@ impl InstanceManager {
                 "start_instance: skipping adb wait for instance {} (skip_adb_wait enabled)",
                 id
             );
-            
-            let mut metadata = self
-                .metadata(id)
-                .map_err(|err| error_detail("start_instance_metadata_after_skip", err.to_string()))?;
+
+            let mut metadata = self.metadata(id).map_err(|err| {
+                error_detail("start_instance_metadata_after_skip", err.to_string())
+            })?;
             metadata.state = InstanceState::Running;
-            metadata.updated_at = epoch_secs()
-                .map_err(|err| error_detail("start_instance_timestamp_after_skip", err.to_string()))?;
+            metadata.updated_at = epoch_secs().map_err(|err| {
+                error_detail("start_instance_timestamp_after_skip", err.to_string())
+            })?;
             let paths = self.paths(id);
-            self.write_metadata(&paths, &metadata)
-                .map_err(|err| error_detail("start_instance_write_metadata_after_skip", err.to_string()))?;
+            self.write_metadata(&paths, &metadata).map_err(|err| {
+                error_detail("start_instance_write_metadata_after_skip", err.to_string())
+            })?;
             self.metadata_cache.insert(id, metadata.clone());
-            
+
             info!(
                 target: "cfctl",
                 "start_instance: instance {} started without adb wait; registering exit watcher",
                 id
             );
             self.spawn_exit_watcher(id, handle);
-            
+
             Ok(InstanceActionResponse {
                 summary: metadata.summary(&self.config.adb_host),
                 journal_tail: None,
@@ -1372,7 +1354,7 @@ impl InstanceManager {
                 return Err(error_detail("wait_for_adb_guest_exit", message));
             }
 
-            if let Err(err) = self.adb_connect(&connect_serial) {
+            if let Err(err) = adb_connect(&self.config.cuttlefish_fhs, &connect_serial) {
                 if Instant::now() >= deadline {
                     let _ = self.terminate_guest(id, Duration::from_secs(2));
                     let message = match self.record_launch_failure(
@@ -1393,7 +1375,7 @@ impl InstanceManager {
                 continue;
             }
 
-            match self.resolve_active_adb_serial(&serial, &connect_serial) {
+            match resolve_active_adb_serial(&self.config.cuttlefish_fhs, &serial, &connect_serial) {
                 Ok(Some(_active_serial)) => {
                     metadata.state = InstanceState::Running;
                     metadata.updated_at = epoch_secs()
@@ -1472,7 +1454,7 @@ impl InstanceManager {
         let deadline = Instant::now() + timeout;
 
         loop {
-            if let Err(err) = self.adb_connect(&connect_serial) {
+            if let Err(err) = adb_connect(&self.config.cuttlefish_fhs, &connect_serial) {
                 let msg = format!("{:#}", err);
                 debug!(
                     target: "cfctl",
@@ -1491,7 +1473,11 @@ impl InstanceManager {
                 continue;
             }
 
-            let active_serial = match self.resolve_active_adb_serial(&serial, &connect_serial) {
+            let active_serial = match resolve_active_adb_serial(
+                &self.config.cuttlefish_fhs,
+                &serial,
+                &connect_serial,
+            ) {
                 Ok(Some(serial)) => serial,
                 Ok(None) => {
                     if Instant::now() >= deadline {
@@ -1525,51 +1511,54 @@ impl InstanceManager {
                 }
             };
 
-            let value =
-                match self.adb_shell_getprop(&active_serial, "VIRTUAL_DEVICE_BOOT_COMPLETED") {
-                    Ok(value) => value.trim().to_string(),
-                    Err(err) => {
-                        let msg = format!("{:#}", err);
-                        debug!(
-                        target: "cfctl",
-                            "verify_boot: adb getprop transient failure for {}: {}",
-                            id,
-                            msg
+            let value = match adb_shell_getprop(
+                &self.config.cuttlefish_fhs,
+                &active_serial,
+                "VIRTUAL_DEVICE_BOOT_COMPLETED",
+            ) {
+                Ok(value) => value.trim().to_string(),
+                Err(err) => {
+                    let msg = format!("{:#}", err);
+                    debug!(
+                    target: "cfctl",
+                        "verify_boot: adb getprop transient failure for {}: {}",
+                        id,
+                        msg
+                    );
+                    if self.console_log_has_boot_marker(id) {
+                        info!(
+                            target: "cfctl",
+                            "verify_boot: console log contained boot marker for {}",
+                            id
                         );
-                        if self.console_log_has_boot_marker(id) {
-                            info!(
-                                target: "cfctl",
-                                "verify_boot: console log contained boot marker for {}",
-                                id
-                            );
-                            return Ok(BootVerificationResult {
-                                adb_ready: true,
-                                boot_marker_observed: true,
-                                failure_reason: None,
-                            });
-                        }
-                        if self.run_log_has_boot_marker(id) {
-                            info!(
-                                target: "cfctl",
-                                "verify_boot: run log contained boot marker for {}",
-                                id
-                            );
-                            return Ok(BootVerificationResult {
-                                adb_ready: true,
-                                boot_marker_observed: true,
-                                failure_reason: None,
-                            });
-                        }
-                        if Instant::now() >= deadline {
-                            return Err(error_detail(
-                                "verify_boot_adb_failed",
-                                format!("adb getprop never succeeded for instance {}: {}", id, msg),
-                            ));
-                        }
-                        thread::sleep(Duration::from_millis(500));
-                        continue;
+                        return Ok(BootVerificationResult {
+                            adb_ready: true,
+                            boot_marker_observed: true,
+                            failure_reason: None,
+                        });
                     }
-                };
+                    if self.run_log_has_boot_marker(id) {
+                        info!(
+                            target: "cfctl",
+                            "verify_boot: run log contained boot marker for {}",
+                            id
+                        );
+                        return Ok(BootVerificationResult {
+                            adb_ready: true,
+                            boot_marker_observed: true,
+                            failure_reason: None,
+                        });
+                    }
+                    if Instant::now() >= deadline {
+                        return Err(error_detail(
+                            "verify_boot_adb_failed",
+                            format!("adb getprop never succeeded for instance {}: {}", id, msg),
+                        ));
+                    }
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                }
+            };
 
             if matches!(value.as_str(), "1" | "true" | "TRUE") {
                 return Ok(BootVerificationResult {
@@ -1656,80 +1645,6 @@ impl InstanceManager {
                 false
             }
         }
-    }
-
-    fn adb_shell_getprop(&self, serial: &str, property: &str) -> Result<String> {
-        let mut cmd = Command::new(&self.config.cuttlefish_fhs);
-        cmd.arg("--")
-            .arg("adb")
-            .arg("-s")
-            .arg(serial)
-            .arg("shell")
-            .arg("getprop")
-            .arg(property);
-        let output = cmd
-            .output()
-            .with_context(|| format!("invoking adb getprop {} for {}", property, serial))?;
-        if !output.status.success() {
-            return Err(anyhow!(
-                "adb returned {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-
-    fn adb_connect(&self, serial: &str) -> Result<()> {
-        let mut cmd = Command::new(&self.config.cuttlefish_fhs);
-        cmd.arg("--").arg("adb").arg("connect").arg(serial);
-        let output = cmd
-            .output()
-            .with_context(|| format!("invoking adb connect {}", serial))?;
-        if !output.status.success() {
-            return Err(anyhow!(
-                "adb connect returned {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        info!(
-            target: "cfctl",
-            "verify_boot: adb connect succeeded for {}",
-            serial
-        );
-        Ok(())
-    }
-
-    fn resolve_active_adb_serial(&self, serial_a: &str, serial_b: &str) -> Result<Option<String>> {
-        let mut cmd = Command::new(&self.config.cuttlefish_fhs);
-        cmd.arg("--").arg("adb").arg("devices");
-        let output = cmd
-            .output()
-            .with_context(|| "invoking adb devices".to_string())?;
-        if !output.status.success() {
-            return Err(anyhow!(
-                "adb devices returned {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines().skip(1) {
-            let mut parts = line.split_whitespace();
-            let Some(entry) = parts.next() else {
-                continue;
-            };
-            let status = parts.next().unwrap_or("");
-            let matches_serial = entry == serial_a || entry == serial_b;
-            if !matches_serial {
-                continue;
-            }
-            if status == "device" {
-                return Ok(Some(entry.to_string()));
-            }
-        }
-        Ok(None)
     }
 
     fn console_log_path(&self, id: InstanceId) -> PathBuf {
@@ -1821,12 +1736,16 @@ impl InstanceManager {
         })
     }
 
-    fn describe(&mut self, id: InstanceId, run_log_lines: Option<usize>) -> Result<InstanceActionResponse> {
+    fn describe(
+        &mut self,
+        id: InstanceId,
+        run_log_lines: Option<usize>,
+    ) -> Result<InstanceActionResponse> {
         let metadata = self.metadata(id)?;
         let summary = metadata.summary(&self.config.adb_host);
         let lines = run_log_lines.unwrap_or(50);
         let run_log_tail = self.guest_log_tail(id, lines)?;
-        
+
         let paths = self.paths(id);
         let console_snapshot = paths.root.join("console_snapshot.log");
         let console_snapshot_path = if console_snapshot.exists() {
@@ -1834,7 +1753,7 @@ impl InstanceManager {
         } else {
             None
         };
-        
+
         Ok(InstanceActionResponse {
             summary,
             journal_tail: None,
@@ -2017,13 +1936,9 @@ impl InstanceManager {
         webrtc_enabled: bool,
         track: Option<&str>,
     ) -> Result<Child> {
-        let log_clone = log_file
-            .try_clone()
-            .context("cloning run log file for stderr")?;
-
-        let inst_name = id.to_string();
         let instance_dir = self.host_instance_dir(id);
         let assembly_dir = self.host_assembly_dir(id);
+<<<<<<< HEAD
         
         // Use sudo to switch user with configured primary group before entering FHS
         // This preserves the group through bubblewrap's namespace isolation
@@ -2173,6 +2088,20 @@ impl InstanceManager {
         })?;
 
         Ok(child)
+=======
+        let instance_name = id.to_string();
+        let launch = LaunchParams {
+            instance_name: &instance_name,
+            adb_port: metadata.adb_port,
+            instance_dir: &instance_dir,
+            assembly_dir: &assembly_dir,
+            boot_image: &metadata.boot_image,
+            init_boot_image: &metadata.init_boot_image,
+            enable_webrtc: webrtc_enabled,
+            track,
+        };
+        spawn_guest_process(&self.config, &launch, log_file)
+>>>>>>> cc002b6 (Add cfctl-lite run workflow)
     }
 
     fn spawn_exit_watcher(&self, id: InstanceId, handle: Arc<GuestHandle>) {
@@ -2234,7 +2163,7 @@ impl InstanceManager {
         metadata.state = new_state.clone();
         metadata.updated_at = epoch_secs()?;
         let paths = self.paths(id);
-        
+
         if new_state == InstanceState::Failed {
             if let Err(err) = self.snapshot_console_on_failure(id, &paths) {
                 warn!(
@@ -2245,7 +2174,7 @@ impl InstanceManager {
                 );
             }
         }
-        
+
         self.write_metadata(&paths, &metadata)?;
         self.metadata_cache.insert(id, metadata.clone());
         self.cleanup_host_state(id);
@@ -2765,9 +2694,14 @@ impl InstanceManager {
         }
 
         let snapshot_path = paths.root.join("console_snapshot.log");
-        fs::copy(&console_log, &snapshot_path)
-            .with_context(|| format!("copying console log {} to {}", console_log.display(), snapshot_path.display()))?;
-        
+        fs::copy(&console_log, &snapshot_path).with_context(|| {
+            format!(
+                "copying console log {} to {}",
+                console_log.display(),
+                snapshot_path.display()
+            )
+        })?;
+
         info!(
             target: "cfctl",
             "snapshot_console_on_failure: saved console snapshot for instance {} to {}",

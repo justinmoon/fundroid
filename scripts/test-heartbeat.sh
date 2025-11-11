@@ -46,6 +46,30 @@ cfctl_env_prefix() {
     printf '%s' "$prefix"
 }
 
+is_local_host() {
+    [[ -z "$REMOTE_HOST" || "$REMOTE_HOST" == "local" || "$REMOTE_HOST" == "localhost" ]]
+}
+
+copy_to_host() {
+    local src="$1"
+    local dst="$2"
+    if is_local_host; then
+        cp "$src" "$dst"
+    else
+        scp "$src" "${REMOTE_HOST}:${dst}"
+    fi
+}
+
+copy_from_host() {
+    local src="$1"
+    local dst="$2"
+    if is_local_host; then
+        cp "$src" "$dst"
+    else
+        scp "${REMOTE_HOST}:${src}" "$dst"
+    fi
+}
+
 remote_cfctl() {
     local env_prefix cmd args=""
     env_prefix="$(cfctl_env_prefix)"
@@ -56,7 +80,11 @@ remote_cfctl() {
     for arg in "$@"; do
         args+=" $(printf '%q' "$arg")"
     done
-    ssh "$REMOTE_HOST" "$cmd$args"
+    if is_local_host; then
+        bash -lc "$cmd$args"
+    else
+        ssh "$REMOTE_HOST" "$cmd$args"
+    fi
 }
 
 cleanup_instance() {
@@ -81,8 +109,8 @@ main() {
         else
             log "No local init_boot.img found, downloading from Hetzner host..."
             INIT_BOOT_SRC="$REPO_ROOT/init_boot.stock.img"
-            scp "${REMOTE_HOST}:/var/lib/cuttlefish/images/init_boot.img" "$INIT_BOOT_SRC" || \
-                die "Failed to download stock init_boot.img from ${REMOTE_HOST}"
+            copy_from_host "/var/lib/cuttlefish/images/init_boot.img" "$INIT_BOOT_SRC" || \
+                die "Failed to obtain stock init_boot.img"
             log "Downloaded stock init_boot.img"
         fi
     fi
@@ -97,7 +125,8 @@ main() {
         INIT_BOOT_OUT="$HEARTBEAT_DIR/init_boot.img" || die "Failed to repack init_boot.img"
 
     log "Uploading init_boot.img to $REMOTE_HOST..."
-    scp "$HEARTBEAT_DIR/init_boot.img" "${REMOTE_HOST}:/tmp/heartbeat-init_boot.img" || die "Failed to upload init_boot.img"
+    copy_to_host "$HEARTBEAT_DIR/init_boot.img" "/tmp/heartbeat-init_boot.img" || \
+        die "Failed to stage init_boot.img on target"
 
     log "Creating Cuttlefish instance..."
     local instance_name

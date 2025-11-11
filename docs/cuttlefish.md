@@ -36,5 +36,10 @@ See `docs/plans/cf-pid1-logging.md` before attempting new PID1 experiments; it c
 ## Per-Agent cfctl stacks
 - Run `scripts/cfctl-agent.sh <agent>` (for example `alfa`) to start a private daemon bound to `~/.cache/cfctl-<agent>/cfctl.sock` plus isolated state/instances/assembly directories under the same prefix. Pass `--binary /path/to/cfctl-daemon` if you want to skip `cargo run`.
 - The launcher writes the resolved paths to `~/.cache/cfctl-<agent>/env`. You can also export them directly via `eval "$(scripts/agent-env.sh <agent>)"` which sets `CFCTL_SOCKET`, `CFCTL_STATE_DIR`, `CFCTL_ETC_DIR`, `CFCTL_CUTTLEFISH_INSTANCES_DIR`, and `CFCTL_CUTTLEFISH_ASSEMBLY_DIR`.
-- Point any command or test at the agent socket, e.g. `CFCTL_SOCKET=$HOME/.cache/cfctl-alfa/cfctl.sock nix develop -c just heartbeat`.
+- To run `just heartbeat` (or `scripts/test-heartbeat.sh`) against your per-agent daemon, export the env and set `CUTTLEFISH_REMOTE_HOST=local` so the harness skips SSH:  
+  ```sh
+  eval "$(scripts/agent-env.sh alfa)"
+  CUTTLEFISH_REMOTE_HOST=local nix develop -c just heartbeat
+  ```  
+  Any CFCTL_* already in the environment will be honored by the script in local mode.
 - Everything lives under `~/.cache/cfctl-<agent>/`; delete that directory to reclaim space once you are done with a throwaway stack.

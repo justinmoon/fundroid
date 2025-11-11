@@ -1,3 +1,4 @@
+use std::env;
 use std::ffi::CString;
 use std::fs::{self, OpenOptions};
 use std::net::TcpListener;
@@ -30,6 +31,15 @@ pub struct RunConfig {
     pub keep_state: bool,
     pub track: Option<String>,
     pub run_as_root: bool,
+    pub state_dir: Option<PathBuf>,
+    pub instances_dir: Option<PathBuf>,
+    pub assembly_dir: Option<PathBuf>,
+    pub system_image_dir: Option<PathBuf>,
+    pub guest_user: Option<String>,
+    pub guest_group: Option<String>,
+    pub cuttlefish_fhs: Option<PathBuf>,
+    pub adb_host: Option<String>,
+    pub base_adb_port: Option<u16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,9 +69,39 @@ pub fn run_once(cfg: RunConfig) -> Result<RunSummary> {
         .open(&run_log_path)
         .with_context(|| format!("opening run log {}", run_log_path.display()))?;
 
-    let mut runtime_cfg = CfctlDaemonConfig::default();
-    runtime_cfg.state_dir = logs_dir.join("state");
-    runtime_cfg.etc_instances_dir = logs_dir.join("etc");
+    let mut runtime_cfg = config_from_env();
+    let state_dir = cfg
+        .state_dir
+        .clone()
+        .or_else(|| env::var("CFCTL_STATE_DIR").ok().map(PathBuf::from))
+        .unwrap_or_else(|| logs_dir.join("state"));
+    runtime_cfg.state_dir = state_dir;
+
+    if let Some(dir) = &cfg.instances_dir {
+        runtime_cfg.cuttlefish_instances_dir = dir.clone();
+    }
+    if let Some(dir) = &cfg.assembly_dir {
+        runtime_cfg.cuttlefish_assembly_dir = dir.clone();
+    }
+    if let Some(dir) = &cfg.system_image_dir {
+        runtime_cfg.cuttlefish_system_image_dir = dir.clone();
+    }
+    if let Some(user) = &cfg.guest_user {
+        runtime_cfg.guest_user = user.clone();
+    }
+    if let Some(group) = &cfg.guest_group {
+        runtime_cfg.guest_primary_group = group.clone();
+    }
+    if let Some(fhs) = &cfg.cuttlefish_fhs {
+        runtime_cfg.cuttlefish_fhs = fhs.clone();
+    }
+    if let Some(host) = &cfg.adb_host {
+        runtime_cfg.adb_host = host.clone();
+    }
+    runtime_cfg.base_adb_port = cfg.base_adb_port.unwrap_or(7200);
+    if cfg.state_dir.is_none() && env::var("CFCTL_ETC_DIR").is_err() {
+        runtime_cfg.etc_instances_dir = logs_dir.join("etc");
+    }
     fs::create_dir_all(&runtime_cfg.state_dir)?;
     fs::create_dir_all(&runtime_cfg.etc_instances_dir)?;
 
@@ -228,6 +268,7 @@ fn wait_for_adb(
     run_log: &Path,
 ) -> Result<String> {
     let timeout = timeout_secs
+        .filter(|secs| *secs > 0)
         .map(Duration::from_secs)
         .unwrap_or(config.adb_wait_timeout);
     let deadline = Instant::now() + timeout;
@@ -284,6 +325,7 @@ fn verify_boot_completed(
     run_log: &Path,
 ) -> Result<BootVerificationResult> {
     let timeout = timeout_secs
+        .filter(|secs| *secs > 0)
         .map(Duration::from_secs)
         .unwrap_or_else(|| Duration::from_secs(120));
     let deadline = Instant::now() + timeout;
@@ -352,7 +394,7 @@ fn verify_boot_completed(
             }
         };
 
-        if value == "1" {
+        if matches!(value.as_str(), "1" | "true" | "TRUE") {
             return Ok(BootVerificationResult {
                 adb_ready: true,
                 boot_marker_observed: true,
@@ -532,13 +574,12 @@ impl Drop for GuestGuard {
     }
 }
 
-fn kill_guest_processes(instance_name: &str, instance_dir: &Path, assembly_dir: &Path) {
+fn kill_guest_processes(_instance_name: &str, instance_dir: &Path, assembly_dir: &Path) {
     let patterns = vec![
         format!("--instance_dir={}", instance_dir.display()),
         format!("--assembly_dir={}", assembly_dir.display()),
         instance_dir.display().to_string(),
         assembly_dir.display().to_string(),
-        format!("cvd-{instance_name}"),
     ];
     for pattern in &patterns {
         let _ = Command::new("pkill")
@@ -655,4 +696,74 @@ fn chown_path(path: &Path, uid: u32, gid: u32) -> Result<()> {
             .with_context(|| format!("chown {}", path.display()));
     }
     Ok(())
+}
+
+fn config_from_env() -> CfctlDaemonConfig {
+    let mut cfg = CfctlDaemonConfig::default();
+    if let Ok(val) = env::var("CFCTL_STATE_DIR") {
+        cfg.state_dir = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_ETC_DIR") {
+        cfg.etc_instances_dir = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_DEFAULT_BOOT") {
+        cfg.default_boot_image = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_DEFAULT_INIT_BOOT") {
+        cfg.default_init_boot_image = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_START_TIMEOUT_SECS") {
+        if let Ok(secs) = val.parse::<u64>() {
+            cfg.start_timeout = Duration::from_secs(secs);
+        }
+    }
+    if let Ok(val) = env::var("CFCTL_ADB_TIMEOUT_SECS") {
+        if let Ok(secs) = val.parse::<u64>() {
+            cfg.adb_wait_timeout = Duration::from_secs(secs);
+        }
+    }
+    if let Ok(val) = env::var("CFCTL_JOURNAL_LINES") {
+        if let Ok(lines) = val.parse::<usize>() {
+            cfg.journal_lines = lines;
+        }
+    }
+    if let Ok(val) = env::var("CFCTL_ADB_HOST") {
+        cfg.adb_host = val;
+    }
+    if let Ok(val) = env::var("CFCTL_BASE_ADB_PORT") {
+        if let Ok(port) = val.parse::<u16>() {
+            cfg.base_adb_port = port;
+        }
+    }
+    if let Ok(val) = env::var("CFCTL_CUTTLEFISH_FHS") {
+        cfg.cuttlefish_fhs = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_CUTTLEFISH_INSTANCES_DIR") {
+        cfg.cuttlefish_instances_dir = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_CUTTLEFISH_ASSEMBLY_DIR") {
+        cfg.cuttlefish_assembly_dir = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_CUTTLEFISH_SYSTEM_IMAGE_DIR") {
+        cfg.cuttlefish_system_image_dir = PathBuf::from(val);
+    }
+    if let Ok(val) = env::var("CFCTL_DISABLE_HOST_GPU") {
+        if let Ok(flag) = val.parse::<bool>() {
+            cfg.disable_host_gpu = flag;
+        }
+    }
+    if let Ok(val) = env::var("CFCTL_GUEST_USER") {
+        cfg.guest_user = val;
+    }
+    if let Ok(val) = env::var("CFCTL_GUEST_PRIMARY_GROUP") {
+        cfg.guest_primary_group = val;
+    }
+    if let Ok(val) = env::var("CFCTL_GUEST_CAPABILITIES") {
+        cfg.guest_capabilities = val
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    cfg
 }

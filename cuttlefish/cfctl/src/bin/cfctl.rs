@@ -50,6 +50,24 @@ enum Commands {
         track: Option<String>,
         #[arg(long)]
         run_as_root: bool,
+        #[arg(long, env = "CFCTL_STATE_DIR")]
+        state_dir: Option<PathBuf>,
+        #[arg(long, env = "CFCTL_CUTTLEFISH_INSTANCES_DIR")]
+        instances_dir: Option<PathBuf>,
+        #[arg(long, env = "CFCTL_CUTTLEFISH_ASSEMBLY_DIR")]
+        assembly_dir: Option<PathBuf>,
+        #[arg(long, env = "CFCTL_CUTTLEFISH_SYSTEM_IMAGE_DIR")]
+        system_image_dir: Option<PathBuf>,
+        #[arg(long, env = "CFCTL_GUEST_USER")]
+        guest_user: Option<String>,
+        #[arg(long, env = "CFCTL_GUEST_PRIMARY_GROUP")]
+        guest_group: Option<String>,
+        #[arg(long, env = "CFCTL_CUTTLEFISH_FHS")]
+        cuttlefish_fhs: Option<PathBuf>,
+        #[arg(long, env = "CFCTL_ADB_HOST")]
+        adb_host: Option<String>,
+        #[arg(long, env = "CFCTL_LITE_BASE_ADB_PORT")]
+        base_adb_port: Option<u16>,
     },
     #[command(subcommand)]
     Instance(InstanceCommands),
@@ -158,6 +176,15 @@ fn main() -> Result<()> {
             keep_state,
             track,
             run_as_root,
+            state_dir,
+            instances_dir,
+            assembly_dir,
+            system_image_dir,
+            guest_user,
+            guest_group,
+            cuttlefish_fhs,
+            adb_host,
+            base_adb_port,
         } => {
             let config = LiteRunConfig {
                 boot_image: boot,
@@ -170,6 +197,15 @@ fn main() -> Result<()> {
                 keep_state,
                 track,
                 run_as_root,
+                state_dir,
+                instances_dir,
+                assembly_dir,
+                system_image_dir,
+                guest_user,
+                guest_group,
+                cuttlefish_fhs,
+                adb_host,
+                base_adb_port,
             };
             let summary = run_lite(config)?;
             let output = serde_json::to_string_pretty(&summary)?;

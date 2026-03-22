@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    os::unix::process::CommandExt,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{self, Child, Command, Stdio},
@@ -2259,6 +2260,16 @@ impl InstanceManager {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::from(log_file))
             .stderr(Stdio::from(log_clone));
+        unsafe {
+            cmd.pre_exec(|| {
+                let max_fd = libc::sysconf(libc::_SC_OPEN_MAX);
+                let max_fd = if max_fd > 0 { max_fd as i32 } else { 1024 };
+                for fd in 3..max_fd {
+                    libc::close(fd);
+                }
+                Ok(())
+            });
+        }
 
         if let Some(parent) = instance_dir.parent() {
             cmd.current_dir(parent);

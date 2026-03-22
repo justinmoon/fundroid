@@ -2148,22 +2148,20 @@ impl InstanceManager {
             target_user, uid, primary_group, gid, self.config.guest_capabilities
         );
 
-        // Use sudo to switch to target user with primary group
-        // Preserve CUTTLEFISH_* environment variables that we set below
-        let preserve_vars = vec![
-            "CUTTLEFISH_INSTANCE",
-            "CUTTLEFISH_INSTANCE_NUM",
-            "CUTTLEFISH_ADB_TCP_PORT",
-            "CUTTLEFISH_DISABLE_HOST_GPU",
-            "GFXSTREAM_DISABLE_GRAPHICS_DETECTOR",
-            "GFXSTREAM_HEADLESS",
-        ];
+        // Use the same launch style as the known-good manual path:
+        // switch credentials with sudo, then inject the CUTTLEFISH_*
+        // environment via env before entering the FHS wrapper.
         let mut cmd = Command::new("sudo");
         cmd.arg("-u").arg(target_user).arg("-g").arg(primary_group);
-        for var in &preserve_vars {
-            cmd.arg(format!("--preserve-env={}", var));
+        cmd.arg("--").arg("env");
+        cmd.arg(format!("CUTTLEFISH_INSTANCE={inst_name}"));
+        cmd.arg(format!("CUTTLEFISH_INSTANCE_NUM={inst_name}"));
+        cmd.arg(format!("CUTTLEFISH_ADB_TCP_PORT={}", metadata.adb_port));
+        if self.config.disable_host_gpu {
+            cmd.arg("CUTTLEFISH_DISABLE_HOST_GPU=1");
         }
-        cmd.arg("--");
+        cmd.arg("GFXSTREAM_DISABLE_GRAPHICS_DETECTOR=1");
+        cmd.arg("GFXSTREAM_HEADLESS=1");
 
         // Add setpriv to set ambient capabilities if any are configured
         let caps: Vec<String> = self
@@ -2258,16 +2256,6 @@ impl InstanceManager {
             );
         }
 
-        if self.config.disable_host_gpu {
-            cmd.env("CUTTLEFISH_DISABLE_HOST_GPU", "1");
-        }
-
-        cmd.env("GFXSTREAM_DISABLE_GRAPHICS_DETECTOR", "1");
-        cmd.env("GFXSTREAM_HEADLESS", "1");
-
-        cmd.env("CUTTLEFISH_INSTANCE", &inst_name);
-        cmd.env("CUTTLEFISH_INSTANCE_NUM", inst_name.clone());
-        cmd.env("CUTTLEFISH_ADB_TCP_PORT", metadata.adb_port.to_string());
         cmd.stdin(Stdio::null())
             .stdout(Stdio::from(log_file))
             .stderr(Stdio::from(log_clone));

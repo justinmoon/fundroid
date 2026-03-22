@@ -28,6 +28,10 @@ use super::util::{epoch_secs, run_command_allow_failure, run_command_capture, ta
 const ID_ALLOC_FILE: &str = "next_id";
 const METADATA_FILE: &str = "metadata.json";
 
+fn cuttlefish_uuid_for_instance(id: InstanceId) -> String {
+    format!("699acfc4-c8c4-11e7-882b-{id:012x}")
+}
+
 /// Resolve a username to a UID using libc getpwnam
 fn resolve_uid(username: &str) -> Result<u32> {
     use std::ffi::CString;
@@ -209,6 +213,18 @@ mod tests {
         assert_eq!(metadata_after.state, InstanceState::Failed);
         assert!(handle.try_wait()?.is_some(), "child should be reaped");
         Ok(())
+    }
+
+    #[test]
+    fn cuttlefish_uuid_is_valid_for_small_instance_ids() {
+        assert_eq!(
+            cuttlefish_uuid_for_instance(60),
+            "699acfc4-c8c4-11e7-882b-00000000003c"
+        );
+        assert_eq!(
+            cuttlefish_uuid_for_instance(107),
+            "699acfc4-c8c4-11e7-882b-00000000006b"
+        );
     }
 
     #[test]
@@ -2187,6 +2203,7 @@ impl InstanceManager {
             ))
             .arg(format!("--instance_dir={}", instance_dir.display()))
             .arg(format!("--assembly_dir={}", assembly_dir.display()))
+            .arg(format!("--uuid={}", cuttlefish_uuid_for_instance(id)))
             .arg("--vm_manager=qemu_cli")
             .arg("--enable_wifi=false")
             .arg("--enable_host_bluetooth=false")

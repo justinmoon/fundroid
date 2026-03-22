@@ -8,6 +8,7 @@ pub struct CfctlDaemonConfig {
     pub etc_instances_dir: PathBuf,
     pub default_boot_image: PathBuf,
     pub default_init_boot_image: PathBuf,
+    pub default_bootloader: PathBuf,
     pub start_timeout: Duration,
     pub adb_wait_timeout: Duration,
     pub journal_lines: usize,
@@ -31,6 +32,9 @@ impl Default for CfctlDaemonConfig {
             etc_instances_dir: PathBuf::from("/etc/cuttlefish/instances"),
             default_boot_image: PathBuf::from("/var/lib/cuttlefish/images/boot.img"),
             default_init_boot_image: PathBuf::from("/var/lib/cuttlefish/images/init_boot.img"),
+            default_bootloader: PathBuf::from(
+                "/var/lib/cuttlefish/etc/bootloader_x86_64/bootloader.qemu",
+            ),
             start_timeout: Duration::from_secs(120),
             adb_wait_timeout: Duration::from_secs(90),
             journal_lines: 200,

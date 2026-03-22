@@ -31,6 +31,12 @@ struct Args {
         default_value = "/var/lib/cuttlefish/images/init_boot.img"
     )]
     default_init_boot_image: PathBuf,
+    #[arg(
+        long,
+        env = "CFCTL_DEFAULT_BOOTLOADER",
+        default_value = "/var/lib/cuttlefish/etc/bootloader_x86_64/bootloader.qemu"
+    )]
+    default_bootloader: PathBuf,
     #[arg(long, env = "CFCTL_START_TIMEOUT_SECS", default_value_t = 120)]
     start_timeout_secs: u64,
     #[arg(long, env = "CFCTL_ADB_TIMEOUT_SECS", default_value_t = 90)]
@@ -93,6 +99,7 @@ async fn main() -> Result<()> {
         etc_instances_dir: args.etc_instances_dir,
         default_boot_image: args.default_boot_image,
         default_init_boot_image: args.default_init_boot_image,
+        default_bootloader: args.default_bootloader,
         start_timeout: Duration::from_secs(args.start_timeout_secs),
         adb_wait_timeout: Duration::from_secs(args.adb_timeout_secs),
         journal_lines: args.journal_lines,

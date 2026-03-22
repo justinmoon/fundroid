@@ -247,6 +247,36 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn wait_for_adb_tolerates_detached_launch_process() -> Result<()> {
+        let (_temp, mut manager) = setup_manager()?;
+        let id = 3;
+        let _metadata = init_metadata(&mut manager, id)?;
+
+        let instance_root = manager.host_instance_dir(id);
+        let detached_dir = instance_root.join("instances").join(format!("cvd-{id}"));
+        fs::create_dir_all(&detached_dir)?;
+        fs::write(detached_dir.join("launcher.log"), b"launch_cvd detached")?;
+
+        let child = Command::new("sh")
+            .arg("-c")
+            .arg("exit 0")
+            .spawn()
+            .context("spawning detached launch child")?;
+        let handle = Arc::new(GuestHandle::new(child));
+        manager.guest_registry.insert(id, Arc::clone(&handle));
+
+        let err = manager
+            .wait_for_adb(id, Some(0))
+            .expect_err("expected adb timeout");
+        assert_eq!(err.code, "wait_for_adb_timeout");
+
+        let metadata_after = manager.metadata(id)?;
+        assert_eq!(metadata_after.state, InstanceState::Failed);
+        assert!(!manager.guest_registry.contains(id));
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct InstanceMetadata {
@@ -990,7 +1020,15 @@ impl InstanceManager {
                 "start_instance: instance {} started without adb wait; registering exit watcher",
                 id
             );
-            self.spawn_exit_watcher(id, handle);
+            if self.guest_registry.contains(id) {
+                self.spawn_exit_watcher(id, handle);
+            } else {
+                info!(
+                    target: "cfctl",
+                    "start_instance: instance {} is running without a tracked launch process; skipping exit watcher",
+                    id
+                );
+            }
 
             Ok(InstanceActionResponse {
                 summary: metadata.summary(&self.config.adb_host),
@@ -1042,7 +1080,15 @@ impl InstanceManager {
                 "start_instance: instance {} reported adb ready; registering exit watcher",
                 id
             );
-            self.spawn_exit_watcher(id, handle);
+            if self.guest_registry.contains(id) {
+                self.spawn_exit_watcher(id, handle);
+            } else {
+                info!(
+                    target: "cfctl",
+                    "start_instance: instance {} is running without a tracked launch process; skipping exit watcher",
+                    id
+                );
+            }
 
             Ok(response)
         }
@@ -1342,47 +1388,69 @@ impl InstanceManager {
         let serial = format!("{}:{}", self.config.adb_host, metadata.adb_port);
         let connect_serial = format!("0.0.0.0:{}", metadata.adb_port);
         let addr = format!("{}:{}", self.config.adb_host, metadata.adb_port);
+        let mut detached_launch = false;
 
         loop {
-            let handle = match self.guest_registry.get(id) {
-                Some(handle) => handle,
-                None => {
+            if !detached_launch {
+                let handle = match self.guest_registry.get(id) {
+                    Some(handle) => handle,
+                    None => {
+                        if self.detached_guest_artifacts_exist(id) {
+                            info!(
+                                target: "cfctl",
+                                "wait_for_adb: instance {} lost launch handle after creating cuttlefish artifacts; continuing detached",
+                                id
+                            );
+                            detached_launch = true;
+                            continue;
+                        }
+                        let message = match self.record_launch_failure(
+                            id,
+                            &mut metadata,
+                            anyhow!("instance {} lost guest handle before adb became ready", id),
+                        ) {
+                            Ok(err) => format!("{err:#}"),
+                            Err(err) => format!(
+                                "instance {} lost guest handle and record failed: {:#}",
+                                id, err
+                            ),
+                        };
+                        return Err(error_detail("wait_for_adb_handle_lost", message));
+                    }
+                };
+
+                if let Some(exit) = handle
+                    .try_wait()
+                    .map_err(|err| error_detail("wait_for_adb_wait", err.to_string()))?
+                {
+                    self.guest_registry.remove_if_handle(id, &handle);
+                    if self.detached_guest_artifacts_exist(id) {
+                        info!(
+                            target: "cfctl",
+                            "wait_for_adb: instance {} launch process exited with {} after creating cuttlefish artifacts; continuing detached",
+                            id,
+                            exit.describe()
+                        );
+                        detached_launch = true;
+                        continue;
+                    }
                     let message = match self.record_launch_failure(
                         id,
                         &mut metadata,
-                        anyhow!("instance {} lost guest handle before adb became ready", id),
+                        anyhow!(
+                            "instance {} exited before adb became ready ({})",
+                            id,
+                            exit.describe()
+                        ),
                     ) {
                         Ok(err) => format!("{err:#}"),
                         Err(err) => format!(
-                            "instance {} lost guest handle and record failed: {:#}",
+                            "instance {} exited before adb and record failed: {:#}",
                             id, err
                         ),
                     };
-                    return Err(error_detail("wait_for_adb_handle_lost", message));
+                    return Err(error_detail("wait_for_adb_guest_exit", message));
                 }
-            };
-
-            if let Some(exit) = handle
-                .try_wait()
-                .map_err(|err| error_detail("wait_for_adb_wait", err.to_string()))?
-            {
-                self.guest_registry.remove_if_handle(id, &handle);
-                let message = match self.record_launch_failure(
-                    id,
-                    &mut metadata,
-                    anyhow!(
-                        "instance {} exited before adb became ready ({})",
-                        id,
-                        exit.describe()
-                    ),
-                ) {
-                    Ok(err) => format!("{err:#}"),
-                    Err(err) => format!(
-                        "instance {} exited before adb and record failed: {:#}",
-                        id, err
-                    ),
-                };
-                return Err(error_detail("wait_for_adb_guest_exit", message));
             }
 
             if let Err(err) = self.adb_connect(&connect_serial) {
@@ -1401,7 +1469,6 @@ impl InstanceManager {
                     };
                     return Err(error_detail("wait_for_adb_timeout", message));
                 }
-                drop(handle);
                 thread::sleep(Duration::from_secs(1));
                 continue;
             }
@@ -1442,7 +1509,6 @@ impl InstanceManager {
                         };
                         return Err(error_detail("wait_for_adb_timeout", message));
                     }
-                    drop(handle);
                     thread::sleep(Duration::from_secs(1));
                 }
                 Err(err) => {
@@ -1461,11 +1527,20 @@ impl InstanceManager {
                         };
                         return Err(error_detail("wait_for_adb_timeout", message));
                     }
-                    drop(handle);
                     thread::sleep(Duration::from_secs(1));
                 }
             }
         }
+    }
+
+    fn detached_guest_artifacts_exist(&self, id: InstanceId) -> bool {
+        let instance_dir = self.host_instance_dir(id);
+        let detached_markers = [
+            instance_dir.join("assembly/cuttlefish_config.json"),
+            instance_dir.join(format!("instances/cvd-{id}/cuttlefish_config.json")),
+            instance_dir.join(format!("instances/cvd-{id}/launcher.log")),
+        ];
+        detached_markers.iter().any(|path| path.exists())
     }
 
     fn verify_boot_completed(
